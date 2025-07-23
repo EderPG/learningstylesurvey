@@ -1,4 +1,6 @@
 <?php
+$string['nosteps'] = 'No hay pasos definidos para esta ruta.';
+$string['noroutefound'] = 'No se encontró ninguna ruta para este curso.';
 $string['pluginname'] = 'Encuesta ILS';
 $string['modulename'] = 'Encuesta ILS';
 $string['ilsq1'] = 'Entiendo algo mejor después de';

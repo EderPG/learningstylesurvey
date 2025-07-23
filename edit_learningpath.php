@@ -59,27 +59,68 @@ if (isset($_POST['guardar']) && confirm_sesskey()) {
     $archivosSeleccionados = optional_param_array('archivos', [], PARAM_TEXT);
     $evaluacionesSeleccionadas = optional_param_array('evaluaciones', [], PARAM_INT);
 
+    // ✅ Eliminar pasos anteriores
     $DB->delete_records('learningstylesurvey_path_files', ['pathid' => $pathid]);
     $DB->delete_records('learningstylesurvey_path_evaluations', ['pathid' => $pathid]);
+    $DB->delete_records('learningpath_steps', ['pathid' => $pathid]);
 
+    $stepnumber = 1;
+
+    // ✅ Insertar nuevos pasos con orden correcto
     foreach ($archivosSeleccionados as $archivo) {
         if (trim($archivo) === '') continue;
+
+        // Insertar en path_files
         $rec = new stdClass();
         $rec->pathid = $pathid;
         $rec->filename = $archivo;
         $DB->insert_record('learningstylesurvey_path_files', $rec);
+
+        // Insertar en learningpath_steps
+        $resourceid = $DB->get_field('learningstylesurvey_resources', 'id', ['filename' => $archivo]);
+        if ($resourceid) {
+            $step = new stdClass();
+            $step->pathid = $pathid;
+            $step->stepnumber = $stepnumber++;
+            $step->resourceid = $resourceid;
+            $step->istest = 0;
+            $DB->insert_record('learningpath_steps', $step);
+        }
     }
 
     foreach ($evaluacionesSeleccionadas as $eval) {
         if ($eval == 0) continue;
+
+        // Insertar en path_evaluations
         $rec = new stdClass();
         $rec->pathid = $pathid;
         $rec->quizid = $eval;
         $DB->insert_record('learningstylesurvey_path_evaluations', $rec);
+
+        // Insertar en learningpath_steps
+        $step = new stdClass();
+        $step->pathid = $pathid;
+        $step->stepnumber = $stepnumber++;
+        $step->resourceid = $eval;
+        $step->istest = 1;
+        $DB->insert_record('learningpath_steps', $step);
     }
 
+    // ✅ Actualizar nombre de la ruta
     $ruta->name = $nombre;
     $DB->update_record('learningstylesurvey_paths', $ruta);
+
+    // ✅ Resetear el progreso al primer paso
+    $firststep = $DB->get_record_sql("SELECT id FROM {learningpath_steps} WHERE pathid = ? ORDER BY stepnumber ASC LIMIT 1", [$pathid]);
+    if ($firststep) {
+        $progressrecords = $DB->get_records('learningstylesurvey_user_progress', ['pathid' => $pathid]);
+        foreach ($progressrecords as $progress) {
+            $progress->current_stepid = $firststep->id;
+            $progress->status = 'inprogress';
+            $progress->timemodified = time();
+            $DB->update_record('learningstylesurvey_user_progress', $progress);
+        }
+    }
 
     redirect(new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid]), "Ruta actualizada", 2);
 }

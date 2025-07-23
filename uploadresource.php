@@ -29,44 +29,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $filename = basename($file['name']);
         $fullpath = $upload_dir . $filename;
 
-        if (file_exists($fullpath)) {
-            $errors[] = "Ya existe un archivo con ese nombre. Elimínalo antes de volver a subirlo.";
-        } else {
-            if (move_uploaded_file($file['tmp_name'], $fullpath)) {
-                // Insertar en resources
-                $record = new stdClass();
-                $record->courseid = $courseid;
-                $record->name = $name;
-                $record->style = $style;
-                $record->filename = $filename;
-                $record->timecreated = time();
-                $DB->insert_record('learningstylesurvey_resources', $record);
+        // ✅ Verificar si ya existe en la BD para este curso
+        $existing = $DB->get_record('learningstylesurvey_resources', ['filename' => $filename, 'courseid' => $courseid]);
 
-                // Insertar también en inforoute (para vista estudiante)
-                $route = new stdClass();
-                $route->courseid = $courseid;
-                $route->name = $name;
-                $route->filename = $filename;
-                $route->instructions = '';
-                $route->steporder = 0;
-                $route->style = $style;
-                $route->timecreated = time();
-                $route->resourceid = 0;
-                $DB->insert_record('learningstylesurvey_inforoute', $route);
+        if ($existing) {
+            // ✅ Si el archivo existe en BD pero no físicamente, permitir re-subida y actualizar
+            if (!file_exists($fullpath)) {
+                if (move_uploaded_file($file['tmp_name'], $fullpath)) {
+                    // Actualizar registro existente en lugar de duplicar
+                    $existing->name = $name;
+                    $existing->style = $style;
+                    $existing->timecreated = time();
+                    $DB->update_record('learningstylesurvey_resources', $existing);
 
-                // ✅ NUEVO: Insertar en path_files para que aparezca en la ruta del estudiante
-                $path = $DB->get_record('learningstylesurvey_paths', ['courseid' => $courseid], '*', IGNORE_MISSING);
-                if ($path) {
-                    $pathfile = new stdClass();
-                    $pathfile->pathid = $path->id;
-                    $pathfile->filename = $filename;
-                    $pathfile->steporder = 0;
-                    $DB->insert_record('learningstylesurvey_path_files', $pathfile);
+                    $success = true;
+                } else {
+                    $errors[] = "Error al subir el archivo.";
                 }
-
-                $success = true;
             } else {
-                $errors[] = "Error al subir el archivo.";
+                $errors[] = "Este archivo ya está registrado. Si deseas actualizarlo, primero elimínalo desde la lista de recursos.";
+            }
+        } else {
+            // ✅ Si no existe en la BD, subir archivo e insertar
+            if (file_exists($fullpath)) {
+                $errors[] = "Ya existe un archivo físico con ese nombre en el sistema. Cambia el nombre antes de subirlo.";
+            } else {
+                if (move_uploaded_file($file['tmp_name'], $fullpath)) {
+                    // ✅ Insertar en tabla resources
+                    $record = new stdClass();
+                    $record->courseid = $courseid;
+                    $record->name = $name;
+                    $record->style = $style;
+                    $record->filename = $filename;
+                    $record->timecreated = time();
+                    $resourceid = $DB->insert_record('learningstylesurvey_resources', $record);
+
+                    // ✅ Insertar en inforoute solo si no existe
+                    if (!$DB->record_exists('learningstylesurvey_inforoute', ['filename' => $filename, 'courseid' => $courseid])) {
+                        $route = new stdClass();
+                        $route->courseid = $courseid;
+                        $route->name = $name;
+                        $route->filename = $filename;
+                        $route->instructions = '';
+                        $route->steporder = 0;
+                        $route->style = $style;
+                        $route->timecreated = time();
+                        $route->resourceid = $resourceid;
+                        $DB->insert_record('learningstylesurvey_inforoute', $route);
+                    }
+
+                    // ✅ Insertar en path_files solo si hay ruta y no existe duplicado
+                    $path = $DB->get_record('learningstylesurvey_paths', ['courseid' => $courseid], '*', IGNORE_MISSING);
+                    if ($path && !$DB->record_exists('learningstylesurvey_path_files', ['filename' => $filename, 'pathid' => $path->id])) {
+                        $pathfile = new stdClass();
+                        $pathfile->pathid = $path->id;
+                        $pathfile->filename = $filename;
+                        $pathfile->steporder = 0;
+                        $DB->insert_record('learningstylesurvey_path_files', $pathfile);
+                    }
+
+                    // ✅ Insertar en learningpath_steps si no existe
+                    if ($path && !$DB->record_exists('learningpath_steps', ['resourceid' => $resourceid, 'pathid' => $path->id])) {
+                        $maxstep = $DB->get_field_sql("SELECT MAX(stepnumber) FROM {learningpath_steps} WHERE pathid = ?", [$path->id]);
+                        $nextstep = $maxstep ? $maxstep + 1 : 1;
+
+                        $step = new stdClass();
+                        $step->pathid = $path->id;
+                        $step->stepnumber = $nextstep;
+                        $step->resourceid = $resourceid;
+                        $step->istest = 0; // recurso
+                        $DB->insert_record('learningpath_steps', $step);
+                    }
+
+                    $success = true;
+                } else {
+                    $errors[] = "Error al subir el archivo.";
+                }
             }
         }
     }

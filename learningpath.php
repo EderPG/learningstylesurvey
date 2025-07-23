@@ -46,7 +46,7 @@ $pathid = $path ? $path->id : 0;
 
         <li style="margin-bottom: 1rem;">
             <?php if ($pathid): ?>
-                <a href="vista_estudiante.php?courseid=<?php echo $courseid; ?>">Modificar Orden de la Ruta de Aprendizaje</a>
+                <a href="organizar_ruta.php?courseid=<?php echo $courseid; ?>&pathid=<?php echo $pathid; ?>">Modificar Orden de la Ruta de Aprendizaje</a>
             <?php else: ?>
                 <span style="color: gray;">No hay rutas para modificar</span>
             <?php endif; ?>

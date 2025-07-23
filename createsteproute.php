@@ -6,8 +6,8 @@ global $DB, $USER;
 
 $courseid = required_param('courseid', PARAM_INT);
 $context = context_course::instance($courseid);
-$baseurl = new moodle_url('/mod/learningstylesurvey/createsteproute.php', array('courseid' => $courseid));
-$returnurl = new moodle_url('/mod/learningstylesurvey/learningpath.php', array('courseid' => $courseid));
+$baseurl = new moodle_url('/mod/learningstylesurvey/createsteproute.php', ['courseid' => $courseid]);
+$returnurl = new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid]);
 
 $PAGE->set_url($baseurl);
 $PAGE->set_context($context);
@@ -20,44 +20,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $evaluaciones = optional_param_array('evaluacion', [], PARAM_INT);
 
     if (empty($archivos) && empty($evaluaciones)) {
-        redirect($baseurl, "Debe seleccionar al menos un archivo o una evaluación.", 3);
+        redirect($baseurl, "Debe seleccionar al menos un recurso o una evaluación.", 3);
     }
 
-    $data = new stdClass();
-    $data->courseid = $courseid;
-    $data->userid = $USER->id;
-    $data->name = $nombre;
-    $data->filename = '';
-    $data->timecreated = time();
+    // ✅ Crear registro en learningstylesurvey_paths
+    $ruta = new stdClass();
+    $ruta->courseid = $courseid;
+    $ruta->userid = $USER->id;
+    $ruta->name = $nombre;
+    $ruta->timecreated = time();
+    $pathid = $DB->insert_record('learningstylesurvey_paths', $ruta);
 
-    $pathid = $DB->insert_record('learningstylesurvey_paths', $data);
+    // ✅ Insertar en learningpath_steps con stepnumber incremental
+    $stepnumber = 1;
 
+    // Insertar recursos como pasos
     foreach ($archivos as $file) {
-        // Obtener ID desde inforoute
-        $inforoute = $DB->get_record('learningstylesurvey_inforoute', ['filename' => $file, 'courseid' => $courseid]);
-        if ($inforoute) {
-            $f = new stdClass();
-            $f->pathid = $pathid;
-            $f->fileid = $inforoute->id;
-            $f->steporder = 0; // Si usas orden personalizado lo puedes ajustar
-            $DB->insert_record('learningstylesurvey_path_files', $f);
+        $resource = $DB->get_record('learningstylesurvey_resources', ['filename' => $file, 'courseid' => $courseid]);
+        if ($resource) {
+            $step = new stdClass();
+            $step->pathid = $pathid;
+            $step->stepnumber = $stepnumber++;
+            $step->resourceid = $resource->id;
+            $step->istest = 0;
+            $step->passredirect = 0;
+            $step->failredirect = 0;
+            $DB->insert_record('learningpath_steps', $step);
         }
     }
 
+    // Insertar evaluaciones como pasos
     foreach ($evaluaciones as $quizid) {
-        $e = new stdClass();
-        $e->pathid = $pathid;
-        $e->quizid = $quizid;
-        $e->steporder = 0;
-        $DB->insert_record('learningstylesurvey_path_evaluations', $e);
+        if (!empty($quizid) && $DB->record_exists('learningstylesurvey_quizzes', ['id' => $quizid])) {
+            $step = new stdClass();
+            $step->pathid = $pathid;
+            $step->stepnumber = $stepnumber++;
+            $step->resourceid = $quizid;
+            $step->istest = 1;
+            $step->passredirect = 0;
+            $step->failredirect = 0;
+            $DB->insert_record('learningpath_steps', $step);
+        }
     }
 
-    redirect($returnurl, "Ruta guardada correctamente.", 2);
+    redirect($returnurl, "Ruta creada exitosamente.", 2);
 }
 
-$uploadspath = __DIR__ . '/uploads';
-$archivos = is_dir($uploadspath) ? array_diff(scandir($uploadspath), ['.', '..']) : [];
-$estilosPorArchivo = $DB->get_records_menu('learningstylesurvey_resources', null, '', 'filename, style');
+// ✅ Cargar recursos y evaluaciones disponibles
+$resources = $DB->get_records('learningstylesurvey_resources', ['courseid' => $courseid]);
 $evaluaciones = $DB->get_records('learningstylesurvey_quizzes', ['courseid' => $courseid]);
 
 echo $OUTPUT->header();
@@ -66,35 +76,38 @@ echo $OUTPUT->heading("Crear Ruta de Aprendizaje");
 
 <form method="post">
     <div>
-        <label>Nombre de la ruta:</label><br>
-        <input type="text" name="nombre" required>
+        <label><strong>Nombre de la ruta:</strong></label><br>
+        <input type="text" name="nombre" required style="width:100%; max-width:400px;">
     </div>
 
-    <div style="margin-top: 10px;">
-        <label for="archivo">Cargar recurso:</label><br>
-        <select name="archivo[]" id="archivo" style="width: 100%; max-width: 400px;" onchange="addOption(this, 'archivolist')">
-            <option value="">Seleccione un recurso</option>
-            <?php foreach ($archivos as $file): ?>
-                <?php $estilo = isset($estilosPorArchivo[$file]) ? $estilosPorArchivo[$file] : 'Sin estilo'; ?>
-                <option value="<?php echo $file; ?>"><?php echo $file . " ($estilo)"; ?></option>
+    <div style="margin-top:15px;">
+        <label><strong>Seleccionar recursos:</strong></label><br>
+        <select name="archivo[]" id="archivo" style="width:100%; max-width:400px;" onchange="addOption(this,'archivolist')">
+            <option value="">-- Seleccione un recurso --</option>
+            <?php foreach ($resources as $res): ?>
+                <option value="<?php echo $res->filename; ?>">
+                    <?php echo format_string($res->name) . " ({$res->style})"; ?>
+                </option>
             <?php endforeach; ?>
         </select>
-        <div id="archivolist"></div>
+        <div id="archivolist" style="margin-top:10px;"></div>
     </div>
 
-    <div style="margin-top: 10px;">
-        <label for="evaluacion">Cargar evaluaciones:</label><br>
-        <select name="evaluacion[]" id="evaluacion" style="width: 100%; max-width: 400px;" onchange="addOption(this, 'evaluacionlist')">
-            <option value="">Seleccione una evaluación</option>
+    <div style="margin-top:15px;">
+        <label><strong>Seleccionar evaluaciones:</strong></label><br>
+        <select name="evaluacion[]" id="evaluacion" style="width:100%; max-width:400px;" onchange="addOption(this,'evaluacionlist')">
+            <option value="">-- Seleccione una evaluación --</option>
             <?php foreach ($evaluaciones as $eval): ?>
-                <option value="<?php echo $eval->id; ?>"><?php echo format_string($eval->name); ?></option>
+                <option value="<?php echo $eval->id; ?>">
+                    <?php echo format_string($eval->name); ?>
+                </option>
             <?php endforeach; ?>
         </select>
-        <div id="evaluacionlist"></div>
+        <div id="evaluacionlist" style="margin-top:10px;"></div>
     </div>
 
-    <div style="margin-top: 15px;">
-        <button type="submit">Guardar ruta</button>
+    <div style="margin-top:20px;">
+        <button type="submit" class="btn btn-primary">Guardar Ruta</button>
     </div>
 </form>
 

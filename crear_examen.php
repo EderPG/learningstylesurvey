@@ -4,12 +4,15 @@ require_login();
 
 $courseid = required_param('courseid', PARAM_INT);
 
-// Obtener cmid del módulo learningstylesurvey
-$cm = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
-$firstcm = reset($cm);
-$cmid = $firstcm->id;
+// Intentar obtener el cmid del módulo learningstylesurvey
+$cmid = 0;
+$instances = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
+if ($instances) {
+    $firstcm = reset($instances);
+    $cmid = $firstcm->id;
+}
 
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/crear_examen.php', array('courseid' => $courseid)));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/crear_examen.php', ['courseid' => $courseid]));
 $PAGE->set_context(context_course::instance($courseid));
 $PAGE->set_title('Crear Recurso de Evaluación');
 $PAGE->set_heading('Crear Recurso de Evaluación');
@@ -22,7 +25,7 @@ echo $OUTPUT->heading('Formulario para Crear Evaluación');
     <input type="hidden" name="courseid" value="<?php echo $courseid; ?>">
 
     <div>
-        <label>Nombre de la evaluación:</label><br>
+        <label><strong>Nombre de la evaluación:</strong></label><br>
         <input type="text" name="quizname" required>
     </div>
 
@@ -51,9 +54,16 @@ echo $OUTPUT->heading('Formulario para Crear Evaluación');
     </div>
 
     <br>
-    <button type="submit">Guardar Evaluación</button>
-    <a href="view.php?id=<?php echo $cmid; ?>" class="btn btn-secondary">Regresar al menú</a>
-    <button type="button" onclick="agregarPregunta()">Agregar otra pregunta</button>
+    <button type="submit" class="btn btn-primary">Guardar Evaluación</button>
+
+    <!-- ✅ Botón regresar -->
+    <?php if ($cmid): ?>
+        <a href="view.php?id=<?php echo $cmid; ?>" class="btn btn-secondary">Regresar al menú</a>
+    <?php else: ?>
+        <a href="<?php echo new moodle_url('/course/view.php', ['id' => $courseid]); ?>" class="btn btn-secondary">Regresar al curso</a>
+    <?php endif; ?>
+
+    <button type="button" onclick="agregarPregunta()" class="btn btn-info">Agregar otra pregunta</button>
 </form>
 
 <script>
