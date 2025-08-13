@@ -202,5 +202,18 @@
     </KEYS>
 </TABLE>
 
+<TABLE NAME="learningstylesurvey_temas" COMMENT="Temas registrados por el maestro para un curso">
+    <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" COMMENT="Identificador único"/>
+        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del curso"/>
+        <FIELD NAME="tema" TYPE="text" NOTNULL="true" COMMENT="Nombre o descripción del tema"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Fecha de creación (timestamp)"/>
+    </FIELDS>
+    <KEYS>
+         <KEY NAME="primary" TYPE="primary" FIELDS="id" COMMENT="Clave primaria"/>
+    </KEYS>
+</TABLE>
+
+
 </TABLES>
 </XMLDB>

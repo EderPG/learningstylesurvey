@@ -17,28 +17,33 @@ $cmid = $firstcm->id;
 $errors = [];
 $success = false;
 
+// Cargar temas para el select
+$temas = $DB->get_records('learningstylesurvey_temas', ['courseid' => $courseid], 'timecreated DESC');
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = required_param('name', PARAM_TEXT);
     $style = required_param('style', PARAM_TEXT);
+    $tema = required_param('tema', PARAM_INT); // nuevo campo tema
     $file = $_FILES['file'];
 
-    if (empty($name) || empty($style) || empty($file['name'])) {
+    if (empty($name) || empty($style) || empty($file['name']) || empty($tema)) {
         $errors[] = "Todos los campos son obligatorios.";
     } else {
         $upload_dir = __DIR__ . '/uploads/';
         $filename = basename($file['name']);
         $fullpath = $upload_dir . $filename;
 
-        // ✅ Verificar si ya existe en la BD para este curso
+        // Verificar si ya existe en la BD para este curso
         $existing = $DB->get_record('learningstylesurvey_resources', ['filename' => $filename, 'courseid' => $courseid]);
 
         if ($existing) {
-            // ✅ Si el archivo existe en BD pero no físicamente, permitir re-subida y actualizar
+            // Si el archivo existe en BD pero no físicamente, permitir re-subida y actualizar
             if (!file_exists($fullpath)) {
                 if (move_uploaded_file($file['tmp_name'], $fullpath)) {
                     // Actualizar registro existente en lugar de duplicar
                     $existing->name = $name;
                     $existing->style = $style;
+                    $existing->tema = $tema; // actualizar tema también
                     $existing->timecreated = time();
                     $DB->update_record('learningstylesurvey_resources', $existing);
 
@@ -50,21 +55,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errors[] = "Este archivo ya está registrado. Si deseas actualizarlo, primero elimínalo desde la lista de recursos.";
             }
         } else {
-            // ✅ Si no existe en la BD, subir archivo e insertar
+            // Si no existe en la BD, subir archivo e insertar
             if (file_exists($fullpath)) {
                 $errors[] = "Ya existe un archivo físico con ese nombre en el sistema. Cambia el nombre antes de subirlo.";
             } else {
                 if (move_uploaded_file($file['tmp_name'], $fullpath)) {
-                    // ✅ Insertar en tabla resources
+                    // Insertar en tabla resources
                     $record = new stdClass();
                     $record->courseid = $courseid;
                     $record->name = $name;
                     $record->style = $style;
+                    $record->tema = $tema;  // guardar el tema seleccionado
                     $record->filename = $filename;
                     $record->timecreated = time();
                     $resourceid = $DB->insert_record('learningstylesurvey_resources', $record);
 
-                    // ✅ Insertar en inforoute solo si no existe
+                    // Insertar en inforoute solo si no existe
                     if (!$DB->record_exists('learningstylesurvey_inforoute', ['filename' => $filename, 'courseid' => $courseid])) {
                         $route = new stdClass();
                         $route->courseid = $courseid;
@@ -78,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $DB->insert_record('learningstylesurvey_inforoute', $route);
                     }
 
-                    // ✅ Insertar en path_files solo si hay ruta y no existe duplicado
+                    // Insertar en path_files solo si hay ruta y no existe duplicado
                     $path = $DB->get_record('learningstylesurvey_paths', ['courseid' => $courseid], '*', IGNORE_MISSING);
                     if ($path && !$DB->record_exists('learningstylesurvey_path_files', ['filename' => $filename, 'pathid' => $path->id])) {
                         $pathfile = new stdClass();
@@ -88,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $DB->insert_record('learningstylesurvey_path_files', $pathfile);
                     }
 
-                    // ✅ Insertar en learningpath_steps si no existe
+                    // Insertar en learningpath_steps si no existe
                     if ($path && !$DB->record_exists('learningpath_steps', ['resourceid' => $resourceid, 'pathid' => $path->id])) {
                         $maxstep = $DB->get_field_sql("SELECT MAX(stepnumber) FROM {learningpath_steps} WHERE pathid = ?", [$path->id]);
                         $nextstep = $maxstep ? $maxstep + 1 : 1;
@@ -145,6 +151,18 @@ if ($success) {
     </div>
 
     <div style="margin-bottom: 15px;">
+        <label for="tema"><strong>Tema:</strong></label><br>
+        <select id="tema" name="tema" class="form-control" required>
+            <option value="">Selecciona un tema</option>
+            <?php
+            foreach ($temas as $tema) {
+                echo '<option value="' . htmlspecialchars($tema->id) . '">' . format_string($tema->tema) . '</option>';
+            }
+            ?>
+        </select>
+    </div>
+
+    <div style="margin-bottom: 15px;">
         <label for="file"><strong>Archivo:</strong></label><br>
         <input type="file" id="file" name="file" class="form-control" required>
     </div>
@@ -153,6 +171,7 @@ if ($success) {
         <button type="submit" class="btn btn-primary">Subir</button>
     </div>
 </form>
+
 <div style="text-align: center; margin-top: 30px;">
     <a href="view.php?id=<?= $cmid ?>&courseid=<?= $courseid ?>" class="btn btn-secondary" style="padding:10px 15px; border-radius:5px;">
         Regresar al menú

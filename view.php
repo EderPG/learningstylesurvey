@@ -30,7 +30,6 @@ if (!has_capability('moodle/course:update', $context)) {
     echo html_writer::start_tag('ul', ['style' => 'list-style:none; padding:0; text-align:center; font-size:18px;']);
     echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/surveyform.php', ['id' => $id]), '📋 Responder encuesta', ['style' => 'display:block; margin:10px 0;']));
     echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/results.php', ['id' => $id]), '📊 Ver resultados', ['style' => 'display:block; margin:10px 0;']));
-    echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/viewresources.php', ['courseid' => $course->id]), '📂 Ver archivos', ['style' => 'display:block; margin:10px 0;']));
     echo html_writer::end_tag('ul');
 
 } else {
@@ -40,6 +39,7 @@ if (!has_capability('moodle/course:update', $context)) {
     echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/results.php', ['id' => $id]), '📊 Ver resultados', ['style' => 'display:block; margin:10px 0;']));
     echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/viewresources.php', ['courseid' => $course->id]), '📂 Ver archivos', ['style' => 'display:block; margin:10px 0;']));
     echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/uploadresource.php', ['courseid' => $course->id]), '⬆️ Subir archivos', ['style' => 'display:block; margin:10px 0;']));
+    echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/temas.php', ['courseid' => $course->id]), '📊 Temas a Revisar', ['style' => 'display:block; margin:10px 0;']));
     echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/crear_examen.php', ['courseid' => $course->id]), '📝 Crear Evaluación', ['style' => 'display:block; margin:10px 0;']));
     echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $course->id]), '🛤 Ruta de Aprendizaje', ['style' => 'display:block; margin:10px 0;']));
     echo html_writer::end_tag('ul');

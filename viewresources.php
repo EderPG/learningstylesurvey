@@ -14,34 +14,40 @@ $cm = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
 $firstcm = reset($cm);
 $cmid = $firstcm->id;
 
-// ✅ Acción para eliminar recurso (confirmación básica con window.confirm)
+// Acción para eliminar recurso (confirmación básica con window.confirm)
 $deleteid = optional_param('deleteid', 0, PARAM_INT);
 if ($deleteid > 0) {
     $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $deleteid, 'courseid' => $courseid]);
     if ($resource) {
         $filepath = __DIR__ . '/uploads/' . $resource->filename;
 
-        // ✅ Eliminar archivo físico
+        // Eliminar archivo físico
         if (is_file($filepath)) {
             unlink($filepath);
         }
 
-        // ✅ Eliminar dependencias en otras tablas
+        // Eliminar dependencias en otras tablas
         $DB->delete_records('learningstylesurvey_inforoute', ['filename' => $resource->filename, 'courseid' => $courseid]);
         $DB->delete_records('learningstylesurvey_path_files', ['filename' => $resource->filename]);
         $DB->delete_records('learningpath_steps', ['resourceid' => $deleteid, 'istest' => 0]);
 
-        // ✅ Eliminar registro principal
+        // Eliminar registro principal
         $DB->delete_records('learningstylesurvey_resources', ['id' => $resource->id]);
 
         redirect(new moodle_url('/mod/learningstylesurvey/viewresources.php', ['courseid' => $courseid]), 'Recurso eliminado correctamente.', 1);
     }
 }
 
-// ✅ Obtener recursos del curso
-$resources = $DB->get_records("learningstylesurvey_resources", ["courseid" => $courseid]);
+// Obtener recursos del curso con nombre de tema
+$resources = $DB->get_records_sql("
+    SELECT r.*, t.tema AS nombretema
+    FROM {learningstylesurvey_resources} r
+    LEFT JOIN {learningstylesurvey_temas} t ON r.tema = t.id
+    WHERE r.courseid = ?
+    ORDER BY r.id DESC
+", [$courseid]);
 
-// ✅ Limpiar registros huérfanos (archivo no existe físicamente)
+// Limpiar registros huérfanos (archivo no existe físicamente)
 foreach ($resources as $res) {
     $filepath = __DIR__ . '/uploads/' . $res->filename;
     if (!is_file($filepath)) {
@@ -50,7 +56,7 @@ foreach ($resources as $res) {
     }
 }
 
-// ✅ Evitar mostrar duplicados por filename
+// Evitar mostrar duplicados por filename
 $seen = [];
 $filteredResources = [];
 foreach ($resources as $r) {
@@ -69,7 +75,7 @@ if (empty($filteredResources)) {
     exit;
 }
 
-// ✅ Mostrar lista de recursos
+// Mostrar lista de recursos
 echo "<ul style='list-style:none; padding:0;'>";
 foreach ($filteredResources as $resource) {
     $filename = $resource->filename;
@@ -83,6 +89,10 @@ foreach ($filteredResources as $resource) {
 
     echo "<li style='margin-bottom:30px; padding:15px; border:1px solid #ddd; border-radius:8px; background:#f9f9f9;'>";
     echo "<h4 style='margin-bottom:10px;'>$name</h4>";
+    // Mostrar nombre del tema asociado si existe
+    if (!empty($resource->nombretema)) {
+        echo "<p><strong>Tema:</strong> " . format_string($resource->nombretema) . "</p>";
+    }
 
     // Botón Ver recurso (abre en visor interno)
     echo "<button class='btn btn-link' onclick=\"viewResource('$fileurl', '" . pathinfo($filename, PATHINFO_EXTENSION) . "')\">Ver recurso</button><br>";
@@ -102,7 +112,7 @@ echo html_writer::div(
     'regresar-curso'
 );
 
-// ✅ Visor interno
+// Visor interno
 echo "<div id='viewer' style='display:none; margin-top:30px;'>
         <button class='btn btn-secondary' onclick='closeViewer()' style='margin-bottom:15px;'>Regresar al listado</button>
         <div id='viewer-content'></div>
@@ -136,6 +146,6 @@ function viewResource(fileUrl, fileType) {
 }
 
 function closeViewer() {
-    location.reload(); // ✅ Volver a listado recargando la página
+    location.reload(); // Volver a listado recargando la página
 }
 </script>
