@@ -74,12 +74,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Guardar resultado más fuerte, eliminando previamente cualquier resultado existente para este usuario
     $DB->delete_records('learningstylesurvey_results', ['userid' => $USER->id]);
+    $DB->delete_records('learningstylesurvey_userstyles', ['userid' => $USER->id]); // limpiar también esta tabla
 
     $record = new stdClass();
     $record->userid = $USER->id;
     $record->strongeststyle = $strongest;
     $record->timecreated = $now;
     $DB->insert_record('learningstylesurvey_results', $record);
+
+    // Guardar también en la tabla userstyles (para tu uso posterior)
+    $userstyle = new stdClass();
+    $userstyle->userid = $USER->id;
+    $userstyle->style = $strongest;
+    $userstyle->timemodified = time();
+    $DB->insert_record('learningstylesurvey_userstyles', $userstyle);
 
     redirect(new moodle_url('/course/view.php', ['id' => $courseid]));
     exit;
