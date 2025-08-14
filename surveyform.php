@@ -12,12 +12,18 @@ $courseid = $course->id;
 
 $PAGE->set_context($context);
 $PAGE->set_cm($cm);
-$PAGE->set_url('/mod/learningstylesurvey/yourform.php', ['id' => $id]);
+$PAGE->set_url('/mod/learningstylesurvey/surveyform.php', ['id' => $id]);
 $PAGE->set_title(get_string('pluginname', 'learningstylesurvey'));
 $PAGE->set_heading(format_string($course->fullname));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $now = time();
+
+    // Borrar respuestas anteriores solo del usuario actual
+    $DB->delete_records('learningstylesurvey_responses', [
+        'userid' => $USER->id, 
+        'surveyid' => $cm->instance
+    ]);
 
     // Guardar cada respuesta individual
     for ($i = 1; $i <= 44; $i++) {
@@ -30,8 +36,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $record->userid = $USER->id;
             $record->questionid = $i;
             $record->response = $response;
-            $record->timecreated = $now;
-            $record->surveyid = $cm->instance; // **aquí va el ID real de la encuesta**
+            $record->surveyid = $cm->instance;
+            $record->timecreated = $now; // timestamp
 
             $DB->insert_record('learningstylesurvey_responses', $record);
         }
@@ -51,12 +57,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         9 => ['Activo','Reflexivo'],10 => ['Sensorial','Intuitivo'],11 => ['Visual','Verbal'],12 => ['Secuencial','Global'],
         13=> ['Activo','Reflexivo'],14 => ['Sensorial','Intuitivo'],15 => ['Visual','Verbal'],16 => ['Secuencial','Global'],
         17=> ['Activo','Reflexivo'],18 => ['Sensorial','Intuitivo'],19 => ['Visual','Verbal'],20 => ['Secuencial','Global'],
-        21=> ['Activo','Reflexivo'],22 => ['Sensorial','Intuitivo'],23 => ['Visual','Verbal'],24 => ['Secuencial','Global'],
-        25=> ['Activo','Reflexivo'],26 => ['Sensorial','Intuitivo'],27 => ['Visual','Verbal'],28 => ['Secuencial','Global'],
-        29=> ['Activo','Reflexivo'],30 => ['Sensorial','Intuitivo'],31 => ['Visual','Verbal'],32 => ['Secuencial','Global'],
-        33=> ['Activo','Reflexivo'],34 => ['Sensorial','Intuitivo'],35 => ['Visual','Verbal'],36 => ['Secuencial','Global'],
-        37=> ['Activo','Reflexivo'],38 => ['Sensorial','Intuitivo'],39 => ['Visual','Verbal'],40 => ['Secuencial','Global'],
-        41=> ['Activo','Reflexivo'],42 => ['Sensorial','Intuitivo'],43 => ['Visual','Verbal'],44 => ['Secuencial','Global']
+        21=> ['Activo','Reflexivo'],22=> ['Sensorial','Intuitivo'],23=> ['Visual','Verbal'],24=> ['Secuencial','Global'],
+        25=> ['Activo','Reflexivo'],26=> ['Sensorial','Intuitivo'],27=> ['Visual','Verbal'],28=> ['Secuencial','Global'],
+        29=> ['Activo','Reflexivo'],30=> ['Sensorial','Intuitivo'],31=> ['Visual','Verbal'],32=> ['Secuencial','Global'],
+        33=> ['Activo','Reflexivo'],34=> ['Sensorial','Intuitivo'],35=> ['Visual','Verbal'],36=> ['Secuencial','Global'],
+        37=> ['Activo','Reflexivo'],38=> ['Sensorial','Intuitivo'],39=> ['Visual','Verbal'],40=> ['Secuencial','Global'],
+        41=> ['Activo','Reflexivo'],42=> ['Sensorial','Intuitivo'],43=> ['Visual','Verbal'],44=> ['Secuencial','Global']
     ];
 
     foreach ($_POST as $key => $value) {
@@ -72,24 +78,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     arsort($stylecounts);
     $strongest = array_key_first($stylecounts);
 
-    // Guardar resultado más fuerte, eliminando previamente cualquier resultado existente para este usuario
+    // Borrar resultados anteriores solo del usuario actual
     $DB->delete_records('learningstylesurvey_results', ['userid' => $USER->id]);
-    $DB->delete_records('learningstylesurvey_userstyles', ['userid' => $USER->id]); // limpiar también esta tabla
+    $DB->delete_records('learningstylesurvey_userstyles', ['userid' => $USER->id]);
 
-    $record = new stdClass();
-    $record->userid = $USER->id;
-    $record->strongeststyle = $strongest;
-    $record->timecreated = $now;
-    $DB->insert_record('learningstylesurvey_results', $record);
+    // Insertar nuevo resultado
+    $result = new stdClass();
+    $result->userid = $USER->id;
+    $result->strongeststyle = $strongest;
+    $result->timecreated = $now;
+    $DB->insert_record('learningstylesurvey_results', $result);
 
-    // Guardar también en la tabla userstyles (para tu uso posterior)
+    // Guardar estilo del usuario para filtrado futuro
     $userstyle = new stdClass();
     $userstyle->userid = $USER->id;
     $userstyle->style = $strongest;
-    $userstyle->timemodified = time();
+    $userstyle->timemodified = $now;
     $DB->insert_record('learningstylesurvey_userstyles', $userstyle);
 
-    redirect(new moodle_url('/course/view.php', ['id' => $courseid]));
+    redirect(new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $id]));
     exit;
 }
 
@@ -113,7 +120,7 @@ echo '<input type="submit" value="Enviar respuestas">';
 echo '</form>';
 
 echo html_writer::div(
-    html_writer::link(new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $id]), 'Regresar al curso', ['class' => 'btn btn-dark', 'style' => 'margin-top: 30px;']),
+    html_writer::link(new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $id]), 'Regresar al menu', ['class' => 'btn btn-dark', 'style' => 'margin-top: 30px;']),
     'regresar-curso'
 );
 

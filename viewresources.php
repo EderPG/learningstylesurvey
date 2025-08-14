@@ -8,7 +8,7 @@ $context = context_course::instance($courseid);
 $PAGE->set_context($context);
 $PAGE->set_url("/mod/learningstylesurvey/viewresources.php", ["courseid" => $courseid]);
 $PAGE->set_title("Material adaptativo");
-$PAGE->set_heading("Material adaptativo para tu estilo de aprendizaje");
+$PAGE->set_heading("Material adaptativo subido");
 
 $cm = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
 $firstcm = reset($cm);
@@ -67,10 +67,18 @@ foreach ($resources as $r) {
 }
 
 echo $OUTPUT->header();
-echo $OUTPUT->heading("Material adaptativo para tu estilo de aprendizaje");
+echo $OUTPUT->heading("Material adaptativo");
 
 if (empty($filteredResources)) {
     echo $OUTPUT->notification("No tienes material adaptativo disponible.", "notifymessage");
+    // Botón para regresar al curso SIEMPRE visible
+    echo html_writer::div(
+        html_writer::link(new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]), 'Regresar al menu', [
+            'class' => 'btn btn-dark',
+            'style' => 'margin-top: 30px;'
+        ]),
+        'regresar-curso'
+    );
     echo $OUTPUT->footer();
     exit;
 }
@@ -92,6 +100,11 @@ foreach ($filteredResources as $resource) {
     // Mostrar nombre del tema asociado si existe
     if (!empty($resource->nombretema)) {
         echo "<p><strong>Tema:</strong> " . format_string($resource->nombretema) . "</p>";
+    }
+
+    // Mostrar estilo de aprendizaje asociado
+    if (!empty($resource->style)) {
+        echo "<p><strong>Estilo asociado:</strong> " . format_string($resource->style) . "</p>";
     }
 
     // Botón Ver recurso (abre en visor interno)

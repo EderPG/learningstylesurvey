@@ -49,7 +49,7 @@ foreach ($respondents as $user) {
 echo html_writer::select($options, 'userid', $selecteduserid, false, ['onchange' => 'this.form.submit();']);
 echo html_writer::end_tag('form');
 
-// Mapeo de preguntas a estilos (igual que en surveyform.php)
+// Mapeo de preguntas a estilos
 $stylemap = [
     1 => ['Activo','Reflexivo'], 2 => ['Sensorial','Intuitivo'], 3 => ['Visual','Verbal'], 4 => ['Secuencial','Global'],
     5 => ['Activo','Reflexivo'], 6 => ['Sensorial','Intuitivo'], 7 => ['Visual','Verbal'], 8 => ['Secuencial','Global'],
@@ -65,8 +65,12 @@ $stylemap = [
 ];
 
 if ($selecteduserid == 0) {
-    // General - todas las respuestas de todos los usuarios
-    $responses = $DB->get_records('learningstylesurvey_responses', ['surveyid' => $survey->id]);
+    // General: tomar solo el último intento de cada usuario
+    $responses = [];
+    foreach ($respondents as $user) {
+        $userresponses = $DB->get_records('learningstylesurvey_responses', ['userid' => $user->id, 'surveyid' => $survey->id], 'timecreated DESC', '*', 0, 44);
+        $responses = array_merge($responses, $userresponses);
+    }
     if (!$responses) {
         echo $OUTPUT->notification("No hay respuestas registradas para esta encuesta.", 'notifymessage');
         echo $OUTPUT->footer();
@@ -74,8 +78,8 @@ if ($selecteduserid == 0) {
     }
     $title = "Resultados generales";
 } else {
-    // Individual
-    $responses = $DB->get_records('learningstylesurvey_responses', ['userid' => $selecteduserid, 'surveyid' => $survey->id]);
+    // Individual: últimas 44 respuestas del usuario
+    $responses = $DB->get_records('learningstylesurvey_responses', ['userid' => $selecteduserid, 'surveyid' => $survey->id], 'timecreated DESC', '*', 0, 44);
     if (!$responses) {
         echo $OUTPUT->notification("El usuario seleccionado no ha respondido la encuesta.", 'notifymessage');
         echo $OUTPUT->footer();
@@ -96,7 +100,6 @@ foreach ($responses as $r) {
     $qid = $r->questionid;
     $answer = intval($r->response);
     if (isset($stylemap[$qid])) {
-        // Incrementar el estilo según la respuesta 0 o 1
         $style = $stylemap[$qid][$answer];
         $stylecounts[$style]++;
     }
@@ -106,8 +109,6 @@ arsort($stylecounts);
 $strongest = array_key_first($stylecounts);
 
 echo html_writer::tag('h3', $title);
-
-// Mostrar estilo más fuerte
 echo html_writer::tag('p', "<strong>Estilo más fuerte: </strong> $strongest");
 
 // Mostrar conteo por estilo
@@ -117,7 +118,7 @@ foreach ($stylecounts as $estilo => $cantidad) {
 }
 echo html_writer::end_tag('ul');
 
-// Preparar datos para gráfica de pastel
+// Gráfica
 $labels = json_encode(array_keys($stylecounts));
 $data = json_encode(array_values($stylecounts));
 $colors = json_encode([
@@ -152,9 +153,9 @@ new Chart(ctx, {
 </script>
 
 <br>
-<form action="../../course/view.php" method="get">
-    <input type="hidden" name="id" value="<?php echo $course->id; ?>">
-    <button type="submit">Volver al curso</button>
+<form action="view.php" method="get">
+    <input type="hidden" name="id" value="<?php echo $cm->id; ?>">
+    <button type="submit">Volver al menu</button>
 </form>
 
 <?php

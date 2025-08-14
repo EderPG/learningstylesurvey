@@ -35,6 +35,20 @@ if (optional_param('submit', false, PARAM_BOOL)) {
     }
 }
 
+// Procesar eliminación de tema
+$deleteid = optional_param('deleteid', 0, PARAM_INT);
+if ($deleteid > 0) {
+    require_sesskey();
+    // Verifica que el tema pertenece al curso actual
+    $tema = $DB->get_record('learningstylesurvey_temas', ['id' => $deleteid, 'courseid' => $courseid]);
+    if ($tema) {
+        $DB->delete_records('learningstylesurvey_temas', ['id' => $deleteid]);
+        redirect(new moodle_url($PAGE->url, ['courseid' => $courseid]));
+    } else {
+        echo $OUTPUT->notification('No se pudo eliminar el tema.', 'notifyproblem');
+    }
+}
+
 // Formulario para agregar un tema
 echo html_writer::tag('h3', 'Agregar tema');
 echo html_writer::start_tag('form', [
@@ -79,7 +93,17 @@ echo html_writer::tag('h3', 'Temas registrados');
 if ($temas) {
     echo html_writer::start_tag('ul');
     foreach ($temas as $t) {
-        echo html_writer::tag('li', format_string($t->tema));
+        $deleteurl = new moodle_url($PAGE->url, [
+            'courseid' => $courseid,
+            'deleteid' => $t->id,
+            'sesskey'  => sesskey()
+        ]);
+        $temahtml = format_string($t->tema) . ' ';
+        $temahtml .= html_writer::link($deleteurl, 'Eliminar', [
+            'onclick' => "return confirm('¿Seguro que deseas eliminar este tema?')",
+            'class' => 'btn btn-danger btn-sm ml-2'
+        ]);
+        echo html_writer::tag('li', $temahtml);
     }
     echo html_writer::end_tag('ul');
 } else {
@@ -87,9 +111,15 @@ if ($temas) {
 }
 
 echo html_writer::tag('br', '');
+
+// Obtener el cmid del módulo learningstylesurvey en este curso
+$cms = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
+$firstcm = reset($cms);
+$cmid = $firstcm->id;
+
 echo html_writer::link(
-    new moodle_url('/course/view.php', ['id' => $courseid]),
-    'Regresar al curso',
+    new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]),
+    'Regresar al menu',
     ['class' => 'btn btn-secondary']
 );
 
