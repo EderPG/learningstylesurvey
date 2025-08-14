@@ -16,11 +16,23 @@ $PAGE->set_heading("Ruta de Aprendizaje");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nombre = required_param('nombre', PARAM_TEXT);
-    $archivos = optional_param_array('archivo', [], PARAM_TEXT);
-    $evaluaciones = optional_param_array('evaluacion', [], PARAM_INT);
+    $tema_id = required_param('tema', PARAM_INT);
+    $evaluaciones = optional_param('evaluacion_hidden', '', PARAM_RAW);
 
-    if (empty($archivos) && empty($evaluaciones)) {
-        redirect($baseurl, "Debe seleccionar al menos un recurso o una evaluación.", 3);
+    // ✅ Buscar todos los recursos asociados al tema seleccionado
+    $archivos = $DB->get_records('learningstylesurvey_resources', [
+        'courseid' => $courseid,
+        'tema' => $tema_id
+    ]);
+
+    // Convertir evaluaciones seleccionadas (del campo oculto) a array
+    $evaluaciones_array = [];
+    if (!empty($evaluaciones)) {
+        $evaluaciones_array = array_filter(explode(',', $evaluaciones));
+    }
+
+    if (empty($archivos) && empty($evaluaciones_array)) {
+        redirect($baseurl, "Debe existir al menos un recurso o una evaluación para este tema.", 3);
     }
 
     // ✅ Crear registro en learningstylesurvey_paths
@@ -31,27 +43,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ruta->timecreated = time();
     $pathid = $DB->insert_record('learningstylesurvey_paths', $ruta);
 
-    // ✅ Insertar en learningpath_steps con stepnumber incremental
+    // ✅ Insertar pasos
     $stepnumber = 1;
 
-    // Insertar recursos como pasos
-    foreach ($archivos as $file) {
-        $resource = $DB->get_record('learningstylesurvey_resources', ['filename' => $file, 'courseid' => $courseid]);
-        if ($resource) {
-            $step = new stdClass();
-            $step->pathid = $pathid;
-            $step->stepnumber = $stepnumber++;
-            $step->resourceid = $resource->id;
-            $step->istest = 0;
-            $step->passredirect = 0;
-            $step->failredirect = 0;
-            $DB->insert_record('learningpath_steps', $step);
-        }
+    // Insertar recursos automáticamente
+    foreach ($archivos as $resource) {
+        $step = new stdClass();
+        $step->pathid = $pathid;
+        $step->stepnumber = $stepnumber++;
+        $step->resourceid = $resource->id;
+        $step->istest = 0;
+        $step->passredirect = 0;
+        $step->failredirect = 0;
+        $DB->insert_record('learningpath_steps', $step);
     }
 
     // Insertar evaluaciones como pasos
-    foreach ($evaluaciones as $quizid) {
-        if (!empty($quizid) && $DB->record_exists('learningstylesurvey_quizzes', ['id' => $quizid])) {
+    foreach ($evaluaciones_array as $quizid) {
+        if ($DB->record_exists('learningstylesurvey_quizzes', ['id' => $quizid])) {
             $step = new stdClass();
             $step->pathid = $pathid;
             $step->stepnumber = $stepnumber++;
@@ -66,8 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect($returnurl, "Ruta creada exitosamente.", 2);
 }
 
-// ✅ Cargar recursos y evaluaciones disponibles
-$resources = $DB->get_records('learningstylesurvey_resources', ['courseid' => $courseid]);
+// ✅ Cargar temas y evaluaciones
+$temas = $DB->get_records('learningstylesurvey_temas', ['courseid' => $courseid]);
 $evaluaciones = $DB->get_records('learningstylesurvey_quizzes', ['courseid' => $courseid]);
 
 echo $OUTPUT->header();
@@ -81,21 +90,21 @@ echo $OUTPUT->heading("Crear Ruta de Aprendizaje");
     </div>
 
     <div style="margin-top:15px;">
-        <label><strong>Seleccionar recursos:</strong></label><br>
-        <select name="archivo[]" id="archivo" style="width:100%; max-width:400px;" onchange="addOption(this,'archivolist')">
-            <option value="">-- Seleccione un recurso --</option>
-            <?php foreach ($resources as $res): ?>
-                <option value="<?php echo $res->filename; ?>">
-                    <?php echo format_string($res->name) . " ({$res->style})"; ?>
+        <label><strong>Seleccionar tema:</strong></label><br>
+        <select name="tema" id="tema" style="width:100%; max-width:400px;" required>
+            <option value="">-- Seleccione un tema --</option>
+            <?php foreach ($temas as $tema): ?>
+                <option value="<?php echo $tema->id; ?>">
+                    <?php echo format_string($tema->tema); ?>
                 </option>
             <?php endforeach; ?>
         </select>
-        <div id="archivolist" style="margin-top:10px;"></div>
+        <small style="color:gray;">Todos los archivos asociados a este tema se incluirán automáticamente.</small>
     </div>
 
     <div style="margin-top:15px;">
         <label><strong>Seleccionar evaluaciones:</strong></label><br>
-        <select name="evaluacion[]" id="evaluacion" style="width:100%; max-width:400px;" onchange="addOption(this,'evaluacionlist')">
+        <select id="evaluacion_select" style="width:100%; max-width:400px;">
             <option value="">-- Seleccione una evaluación --</option>
             <?php foreach ($evaluaciones as $eval): ?>
                 <option value="<?php echo $eval->id; ?>">
@@ -103,7 +112,9 @@ echo $OUTPUT->heading("Crear Ruta de Aprendizaje");
                 </option>
             <?php endforeach; ?>
         </select>
-        <div id="evaluacionlist" style="margin-top:10px;"></div>
+        <button type="button" class="btn btn-info" onclick="agregarEvaluacion()">Agregar</button>
+        <ul id="evaluaciones_lista" style="margin-top:10px;"></ul>
+        <input type="hidden" name="evaluacion_hidden" id="evaluacion_hidden">
     </div>
 
     <div style="margin-top:20px;">
@@ -112,27 +123,38 @@ echo $OUTPUT->heading("Crear Ruta de Aprendizaje");
 </form>
 
 <script>
-function addOption(selectElement, containerId) {
-    const value = selectElement.value;
-    if (!value) return;
+let evaluacionesSeleccionadas = [];
 
-    const text = selectElement.options[selectElement.selectedIndex].text;
-    const container = document.getElementById(containerId);
+function agregarEvaluacion() {
+    const select = document.getElementById('evaluacion_select');
+    const evalId = select.value;
+    const evalText = select.options[select.selectedIndex].text;
 
-    if (container.querySelector("input[value='" + value + "']")) return;
+    if (evalId && !evaluacionesSeleccionadas.includes(evalId)) {
+        evaluacionesSeleccionadas.push(evalId);
 
-    const input = document.createElement("input");
-    input.type = "hidden";
-    input.name = selectElement.name;
-    input.value = value;
+        const ul = document.getElementById('evaluaciones_lista');
+        const li = document.createElement('li');
+        li.textContent = evalText;
+        li.setAttribute('data-id', evalId);
 
-    const label = document.createElement("div");
-    label.textContent = text;
-    label.style.marginTop = "5px";
-    label.appendChild(input);
+        const btn = document.createElement('button');
+        btn.textContent = 'Quitar';
+        btn.className = 'btn btn-sm btn-danger ml-2';
+        btn.onclick = function() {
+            ul.removeChild(li);
+            evaluacionesSeleccionadas = evaluacionesSeleccionadas.filter(id => id !== evalId);
+            actualizarCampoEvaluaciones();
+        };
+        li.appendChild(btn);
 
-    container.appendChild(label);
-    selectElement.selectedIndex = 0;
+        ul.appendChild(li);
+        actualizarCampoEvaluaciones();
+    }
+}
+
+function actualizarCampoEvaluaciones() {
+    document.getElementById('evaluacion_hidden').value = evaluacionesSeleccionadas.join(',');
 }
 </script>
 
