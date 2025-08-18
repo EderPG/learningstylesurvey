@@ -144,16 +144,7 @@
                 <KEY NAME="primary" TYPE="primary" FIELDS="id" />
             </KEYS>
         </TABLE>
-    <TABLE NAME="learningstylesurvey_option" COMMENT="Opciones de respuesta para cada pregunta del examen">
-    <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" COMMENT="Identificador único"/>
-        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID de la pregunta asociada"/>
-        <FIELD NAME="optiontext" TYPE="text" NOTNULL="true" COMMENT="Texto de la opción de respuesta"/>
-    </FIELDS>
-    <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id" COMMENT="Clave primaria"/>
-    </KEYS>
-</TABLE>
+
 <TABLE NAME="learningstylesurvey_options" COMMENT="Opciones por pregunta">
     <FIELDS>
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
