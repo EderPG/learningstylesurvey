@@ -19,7 +19,7 @@ $userstyle = $DB->get_record_sql("
     SELECT style
     FROM {learningstylesurvey_userstyles}
     WHERE userid = ?
-    ORDER BY timemodified DESC
+    ORDER BY timecreated DESC
     LIMIT 1
 ", [$USER->id]);
 if (!$userstyle) {
