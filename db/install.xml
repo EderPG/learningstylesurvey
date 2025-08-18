@@ -6,8 +6,8 @@
                 <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" />
                 <FIELD NAME="intro" TYPE="text" NOTNULL="false" />
                 <FIELD NAME="introformat" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="1" />
-                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" />
-                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="false" />
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" />
                 <FIELD NAME="recoveryquizid" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" />
   </FIELDS>
             <KEYS>
@@ -63,6 +63,7 @@
                 <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" />
                 <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true" />
                 <FIELD NAME="style" TYPE="char" LENGTH="50" NOTNULL="true" />
+                <FIELD NAME="tema" TYPE="int" LENGTH="10" NOTNULL="false"/>
                 <FIELD NAME="recoveryquizid" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" />
   </FIELDS>
             <KEYS>
@@ -94,7 +95,7 @@
                 <FIELD NAME="instructions" TYPE="text" NOTNULL="true" />
                 <FIELD NAME="steporder" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
                 <FIELD NAME="style" TYPE="char" LENGTH="50" NOTNULL="true" />
-                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
             </FIELDS>
             <KEYS>
                 <KEY NAME="primary" TYPE="primary" FIELDS="id" />
@@ -108,7 +109,7 @@
                 <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
                 <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" />
                 <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" />
-                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
                 <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" />
                 <FIELD NAME="orden" TYPE="int" LENGTH="11" NOTNULL="false" DEFAULT="0" />
             </FIELDS>
@@ -207,7 +208,7 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" COMMENT="Identificador único"/>
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del curso"/>
         <FIELD NAME="tema" TYPE="text" NOTNULL="true" COMMENT="Nombre o descripción del tema"/>
-        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="Fecha de creación (timestamp)"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Fecha de creación (timestamp)"/>
     </FIELDS>
     <KEYS>
          <KEY NAME="primary" TYPE="primary" FIELDS="id" COMMENT="Clave primaria"/>
@@ -219,13 +220,34 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
         <FIELD NAME="style" TYPE="char" LENGTH="50" NOTNULL="true"/>
-        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
     </FIELDS>
     <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
         <KEY NAME="userid_fk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
     </KEYS>
 </TABLE>
+
+<TABLE NAME="learningstylesurvey_user_progress" COMMENT="Progreso de los usuarios en rutas de aprendizaje">
+    <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="current_stepid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="inprogress"/>
+        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+    </FIELDS>
+    <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="userfk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
+        <KEY NAME="pathfk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id"/>
+        <KEY NAME="stepfk" TYPE="foreign" FIELDS="current_stepid" REFTABLE="learningpath_steps" REFFIELDS="id"/>
+    </KEYS>
+    <INDEXES>
+        <INDEX NAME="userpath_idx" UNIQUE="true" FIELDS="userid, pathid"/>
+    </INDEXES>
+</TABLE>
+
 
 
 
