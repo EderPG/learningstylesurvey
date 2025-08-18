@@ -79,6 +79,7 @@
             <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" />
             <FIELD NAME="response" TYPE="text" NOTNULL="true" />
             <FIELD NAME="recoveryquizid" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" />
+            <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
   </FIELDS>
         <KEYS>
             <KEY NAME="primary" TYPE="primary" FIELDS="id" />
