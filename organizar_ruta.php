@@ -30,51 +30,56 @@ if (!$steps) {
 } else {
     echo "<div id='tarjetas' style='margin-top:20px;'>";
 
+    // Agrupar pasos por tema
+    $temas = $DB->get_records('learningstylesurvey_temas', ['courseid' => $courseid], 'timecreated DESC');
+    $temas_pasos = [];
     foreach ($steps as $step) {
-        $tipo = $step->istest ? 'examen' : 'recurso';
-        $nombre = $step->istest
-            ? $DB->get_field('learningstylesurvey_quizzes', 'name', ['id' => $step->resourceid])
-            : $DB->get_field('learningstylesurvey_resources', 'name', ['id' => $step->resourceid]);
-
-        // Mostrar tarjeta
-        echo "<div class='card' data-id='{$step->id}' data-tipo='{$tipo}' style='background:white; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); margin-bottom:20px; padding:15px;'>";
-        echo "<h3>" . format_string($nombre ?: 'Sin nombre') . " <small style='color:gray;'>($tipo)</small></h3>";
-
-        // ✅ Si es examen, mostrar selects para redirección
-        if ($tipo === 'examen') {
-            echo "<div style='margin-top:10px;'>";
-            echo "<label><strong>Si aprueba ir a:</strong></label> ";
-            echo "<select class='redirect-pass' data-id='{$step->id}'>";
-            echo "<option value=''>-- Ninguno --</option>";
-
-            foreach ($steps as $s) {
-                if ($s->id != $step->id) {
-                    $sname = $s->istest
-                        ? $DB->get_field('learningstylesurvey_quizzes', 'name', ['id' => $s->resourceid])
-                        : $DB->get_field('learningstylesurvey_resources', 'name', ['id' => $s->resourceid]);
-                    $selected = ($step->passredirect == $s->id) ? 'selected' : '';
-                    echo "<option value='{$s->id}' $selected>" . format_string($sname ?: 'Sin nombre') . "</option>";
+        if (!$step->istest) {
+            $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
+            if ($resource && isset($temas[$resource->tema])) {
+                $temaid = $resource->tema;
+                if (!isset($temas_pasos[$temaid])) {
+                    $temas_pasos[$temaid] = [
+                        'tema' => $temas[$temaid],
+                        'recursos' => [],
+                        'examenes' => []
+                    ];
                 }
+                $temas_pasos[$temaid]['recursos'][] = $step;
             }
-            echo "</select>";
-
-            echo " &nbsp; <label><strong>Si reprueba ir a:</strong></label> ";
-            echo "<select class='redirect-fail' data-id='{$step->id}'>";
-            echo "<option value=''>-- Ninguno --</option>";
-
-            foreach ($steps as $s) {
-                if ($s->id != $step->id) {
-                    $sname = $s->istest
-                        ? $DB->get_field('learningstylesurvey_quizzes', 'name', ['id' => $s->resourceid])
-                        : $DB->get_field('learningstylesurvey_resources', 'name', ['id' => $s->resourceid]);
-                    $selected = ($step->failredirect == $s->id) ? 'selected' : '';
-                    echo "<option value='{$s->id}' $selected>" . format_string($sname ?: 'Sin nombre') . "</option>";
-                }
-            }
-            echo "</select>";
-            echo "</div>";
+        } else {
+            // Examenes se agrupan aparte
+            $temas_pasos['examenes'][] = $step;
         }
+    }
 
+    // Mostrar tarjetas por tema
+    foreach ($temas_pasos as $temaid => $grupo) {
+        if ($temaid === 'examenes') continue;
+        $tema = $grupo['tema'];
+        echo "<div class='card' style='background:white; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); margin-bottom:20px; padding:15px;'>";
+        echo "<h3>" . format_string($tema->tema ?: 'Sin tema') . " <small style='color:gray;'>(tema)</small></h3>";
+        echo "<ul>";
+        foreach ($grupo['recursos'] as $step) {
+            $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
+            $nombre = $resource ? format_string($resource->name ?: 'Sin nombre') : 'Sin nombre';
+            $estilo = $resource ? format_string($resource->style ?: 'Sin estilo') : '';
+            echo "<li>" . $nombre . " <span style='color: #888;'>(Estilo: $estilo)</span></li>";
+        }
+        echo "</ul>";
+        echo "</div>";
+    }
+
+    // Mostrar tarjeta de exámenes
+    if (!empty($temas_pasos['examenes'])) {
+        echo "<div class='card' style='background:white; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); margin-bottom:20px; padding:15px;'>";
+        echo "<h3>Exámenes <small style='color:gray;'>(examen)</small></h3>";
+        echo "<ul>";
+        foreach ($temas_pasos['examenes'] as $step) {
+            $nombre = $DB->get_field('learningstylesurvey_quizzes', 'name', ['id' => $step->resourceid]);
+            echo "<li>" . format_string($nombre ?: 'Sin nombre') . "</li>";
+        }
+        echo "</ul>";
         echo "</div>";
     }
 

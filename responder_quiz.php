@@ -33,12 +33,33 @@ function process_quiz_submission($quizid, $courseid, $userid, $embedded = false)
 
     foreach ($questions as $q) {
         $userAnswer = optional_param("question{$q->id}", null, PARAM_INT);
-        if ($userAnswer !== null && $userAnswer == $q->correctanswer) {
+
+        // Obtener opciones ordenadas para comparar el índice
+        $options = $DB->get_records('learningstylesurvey_options', ['questionid' => $q->id]);
+        $options = array_values($options); // asegurar orden
+
+        // Buscar el índice de la opción correcta
+        $correctIndex = 0;
+        foreach ($options as $idx => $opt) {
+            if ($opt->is_correct) { // asumiendo que tienes un campo is_correct
+                $correctIndex = $idx;
+                break;
+            }
+        }
+
+        if ($userAnswer !== null && $userAnswer == $correctIndex) {
             $correct++;
         }
     }
 
-    $score = round(($correct / $total) * 100);
+    $score = ($total > 0) ? round(($correct / $total) * 100) : 0;
+
+    // Buscar si ya existe resultado
+    $existing = $DB->get_record('learningstylesurvey_quiz_results', [
+        'userid' => $userid,
+        'quizid' => $quizid,
+        'courseid' => $courseid
+    ]);
 
     $record = new stdClass();
     $record->userid = $userid;
@@ -47,7 +68,13 @@ function process_quiz_submission($quizid, $courseid, $userid, $embedded = false)
     $record->score = $score;
     $record->timemodified = time();
     $record->timecompleted = time();
-    $DB->insert_record('learningstylesurvey_quiz_results', $record);
+
+    if ($existing) {
+        $record->id = $existing->id;
+        $DB->update_record('learningstylesurvey_quiz_results', $record);
+    } else {
+        $DB->insert_record('learningstylesurvey_quiz_results', $record);
+    }
 
     return $score;
 }

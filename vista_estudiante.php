@@ -22,8 +22,18 @@ $userstyle = $DB->get_record_sql("
     ORDER BY timecreated DESC
     LIMIT 1
 ", [$USER->id]);
+$show_warning = false;
 if (!$userstyle) {
-    throw new moodle_exception('No tienes un estilo de aprendizaje registrado. Por favor, realiza la encuesta.');
+    $show_warning = true;
+    echo $OUTPUT->header();
+    echo "<div class='container' style='max-width:600px; margin:40px auto;'>";
+    echo "<div class='alert alert-warning' style='font-size:18px; background:#fff3cd; color:#856404; border:1px solid #ffeeba; padding:20px; border-radius:8px;'>";
+    echo "<strong>¡Atención!</strong> Para acceder a la ruta de aprendizaje primero debes contestar la <b>encuesta de estilos de aprendizaje</b>.";
+    echo "</div>";
+    echo html_writer::link(new moodle_url('/mod/learningstylesurvey/surveyform.php', ['courseid' => $courseid]), 'Ir a la encuesta', ['class' => 'btn btn-primary', 'style' => 'font-size:18px; margin-top:20px;']);
+    echo "</div>";
+    echo $OUTPUT->footer();
+    exit;
 }
 $style = $userstyle->style;
 
@@ -41,151 +51,74 @@ if (!$pathid) {
     $pathid = $lastroute->id;
 }
 
-// Obtener o crear progreso
-$progress = $DB->get_record('learningstylesurvey_user_progress', ['userid'=>$USER->id,'pathid'=>$pathid]);
-if (!$progress) {
-    $firststep = $DB->get_record_sql("
-        SELECT *
-        FROM {learningpath_steps}
-        WHERE pathid = ?
-        ORDER BY stepnumber ASC
-        LIMIT 1
-    ", [$pathid]);
-    if (!$firststep) throw new moodle_exception('No hay pasos definidos en esta ruta.');
+// Buscar el primer paso de la ruta que coincida con el estilo del usuario
+$step = $DB->get_record_sql("
+    SELECT s.*
+    FROM {learningpath_steps} s
+    JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
+    WHERE s.pathid = ? AND r.style = ? AND s.istest = 0
+    ORDER BY s.stepnumber ASC
+    LIMIT 1
+", [$pathid, $style]);
 
-    $progress = (object)[
-        'userid' => $USER->id,
-        'pathid' => $pathid,
-        'current_stepid' => $firststep->id,
-        'status' => 'inprogress',
-        'timemodified' => time()
-    ];
-    $progress->id = $DB->insert_record('learningstylesurvey_user_progress', $progress);
-}
-
-// Validar paso actual
-$currentstepid = $stepid ?: $progress->current_stepid;
-$currentstep = $DB->get_record('learningpath_steps', ['id'=>$currentstepid]);
-if (!$currentstep) {
-    $firststep = $DB->get_record_sql("
-        SELECT *
-        FROM {learningpath_steps}
-        WHERE pathid = ?
-        ORDER BY stepnumber ASC
-        LIMIT 1
-    ", [$pathid]);
-    if ($firststep) {
-        $progress->current_stepid = $firststep->id;
-        $DB->update_record('learningstylesurvey_user_progress', $progress);
-        redirect(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid'=>$courseid,'pathid'=>$pathid]));
-    } else throw new moodle_exception('No hay pasos válidos en esta ruta.');
-}
-
-// Renderizar interfaz
+// Mostrar recurso relacionado con el estilo
 echo $OUTPUT->header();
 echo "<div class='container' style='max-width:900px; margin:20px auto;'>";
 echo "<h2>Ruta de Aprendizaje ({$style})</h2>";
-echo "<h3>Paso {$currentstep->stepnumber}</h3>";
-
-// Obtener todos los pasos de la ruta para mostrar progreso
-$steps = $DB->get_records_sql("
-    SELECT *
-    FROM {learningpath_steps}
-    WHERE pathid = ?
-    ORDER BY stepnumber ASC
-", [$pathid]);
-
-echo "<div style='margin-top:20px; border:1px solid #ddd; padding:15px; border-radius:8px; background:#f9f9f9;'>";
-echo "<h4>Progreso:</h4>";
-foreach ($steps as $step) {
-    $nombre = ($step->istest == 1) 
-        ? $DB->get_field('learningstylesurvey_quizzes','name',['id'=>$step->resourceid])
-        : $DB->get_field('learningstylesurvey_resources','name',['id'=>$step->resourceid]);
-    
-    $estado = ($step->id == $progress->current_stepid) 
-        ? 'Activo' 
-        : (($step->stepnumber < $currentstep->stepnumber) ? 'Completado' : 'Bloqueado');
-
-    echo "<div style='margin-bottom:8px;'>";
-    echo "<strong>Paso {$step->stepnumber}:</strong> " . format_string($nombre) . " <em>({$estado})</em>";
-    if ($step->id == $progress->current_stepid) {
-        echo " <a href='?courseid={$courseid}&pathid={$pathid}&stepid={$step->id}' class='btn btn-sm btn-primary'>Ir</a>";
+if ($step) {
+    $resource = $DB->get_record('learningstylesurvey_resources', ['id'=>$step->resourceid]);
+    $fileurl = "{$CFG->wwwroot}/mod/learningstylesurvey/uploads/{$resource->filename}";
+    $ext = pathinfo($resource->filename, PATHINFO_EXTENSION);
+    if (in_array(strtolower($ext), ['jpg','jpeg','png','gif'])) {
+        echo "<img src='$fileurl' style='max-width:100%; height:auto; margin-bottom:20px;'>";
+    } elseif (strtolower($ext) === 'pdf') {
+        echo "<iframe src='$fileurl' style='width:100%; height:600px; border:none;'></iframe>";
+    } elseif (in_array(strtolower($ext), ['mp4','webm'])) {
+        echo "<video controls style='width:100%; max-height:500px;'><source src='$fileurl' type='video/$ext'>Tu navegador no soporta video HTML5.</video>";
     } else {
-        echo " <button class='btn btn-sm btn-secondary' disabled>Bloqueado</button>";
+        echo "<a href='$fileurl' target='_blank'>Descargar recurso</a>";
     }
-    echo "</div>";
-}
-echo "</div><hr>";
-
-// Renderizar paso actual
-$can_continue = true;
-
-if ($currentstep->istest == 1) {
-    $quizid = $currentstep->resourceid;
-
-    // Eliminar resultados previos para que el examen sea limpio
-    $DB->delete_records('learningstylesurvey_quiz_results', [
-        'quizid'=>$quizid,
-        'userid'=>$USER->id,
-        'courseid'=>$courseid
-    ]);
-
-    // Incluir examen embebido
-    $_GET['embedded'] = 1;
-    $_GET['id'] = $quizid;
-    $_GET['courseid'] = $courseid;
-    include('responder_quiz.php');
-
-    // Revisar resultado si existe
-    $result = $DB->get_record('learningstylesurvey_quiz_results', [
-        'quizid'=>$quizid,
-        'userid'=>$USER->id,
-        'courseid'=>$courseid
-    ]);
-
-    if ($result) {
-        if ($result->score >= 70 && $currentstep->passredirect) {
-            $progress->current_stepid = $currentstep->passredirect;
-            $DB->update_record('learningstylesurvey_user_progress', $progress);
-            redirect(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid'=>$courseid,'pathid'=>$pathid]));
-        } elseif ($result->score < 70 && $currentstep->failredirect) {
-            $progress->current_stepid = $currentstep->failredirect;
-            $DB->update_record('learningstylesurvey_user_progress', $progress);
-            redirect(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid'=>$courseid,'pathid'=>$pathid]));
-        } elseif ($result->score < 70) {
-            $can_continue = false; // Bloquear continuar si no aprobó y no hay failredirect
-        }
-    } else {
-        $can_continue = false;
-    }
-
-} else {
-    $resource = $DB->get_record('learningstylesurvey_resources',['id'=>$currentstep->resourceid]);
-    if ($resource) {
-        $fileurl = "{$CFG->wwwroot}/mod/learningstylesurvey/uploads/{$resource->filename}";
-        echo "<div><strong>Recurso:</strong></div>";
-        echo "<iframe src='{$fileurl}' style='width:100%; height:600px; border:1px solid #ccc;'></iframe>";
-    }
-}
-
-// Botón continuar al siguiente paso solo si no es examen o ya pasó el examen
-if ($can_continue) {
+    // Botón de avance manual
     echo "<form method='POST' action='siguiente.php'>
-            <input type='hidden' name='stepid' value='{$progress->current_stepid}'>
             <input type='hidden' name='courseid' value='{$courseid}'>
+            <input type='hidden' name='pathid' value='{$pathid}'>
+            <input type='hidden' name='stepid' value='{$step->id}'>
             <button type='submit' class='btn btn-success' style='margin-top:15px;'>Continuar</button>
           </form>";
 } else {
-    echo "<div style='margin-top:15px; color:red; font-weight:bold;'>Debes aprobar el examen para poder continuar</div>";
+    echo "<div class='alert alert-info'>No hay recursos para tu estilo en esta ruta.</div>";
 }
 
-// Botón regresar al menú
+// Buscar el primer paso de examen programado en la ruta
+$quizstep = $DB->get_record_sql("
+    SELECT s.*
+    FROM {learningpath_steps} s
+    WHERE s.pathid = ? AND s.istest = 1
+    ORDER BY s.stepnumber ASC
+    LIMIT 1
+", [$pathid]);
 $cm = $DB->get_record_sql("
     SELECT cm.id 
     FROM {course_modules} cm
     JOIN {modules} m ON m.id = cm.module
     WHERE cm.course = ? AND m.name = 'learningstylesurvey'
     ORDER BY cm.id ASC LIMIT 1", [$courseid]);
+if ($quizstep && $cm) {
+    echo "<div style='margin-top:30px;'>";
+    echo "<h3>Examen programado</h3>";
+    echo html_writer::link(
+        new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+            'id' => $quizstep->resourceid,
+            'courseid' => $courseid,
+            'embedded' => 0
+        ]),
+        'Ir al examen',
+        ['class'=>'btn btn-primary']
+    );
+    echo "</div>";
+}
+
+// Botón regresar al menú
 if ($cm) {
     $menuurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id'=>$cm->id]);
     echo "<div style='margin-top:30px;'><a href='{$menuurl}' class='btn btn-secondary'>Regresar al menú</a></div>";
