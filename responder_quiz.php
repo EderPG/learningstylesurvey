@@ -9,18 +9,18 @@ $quizid   = required_param('id', PARAM_INT);
 $courseid = required_param('courseid', PARAM_INT);
 $userid   = $USER->id;
 
-if (!$embedded) {
-    require_login($courseid);
-    $PAGE->set_url(new moodle_url('/mod/learningstylesurvey/responder_quiz.php', ['id' => $quizid, 'courseid' => $courseid]));
-    $PAGE->set_context(context_course::instance($courseid));
-    $PAGE->set_title('Responder Cuestionario');
-    $PAGE->set_heading('Responder Cuestionario');
-    echo $OUTPUT->header();
-    echo "<div class='box generalbox' style='padding: 20px; max-width: 800px; margin: 0 auto;'>";
-    echo $OUTPUT->heading('Cuestionario: ' . format_string($DB->get_field('learningstylesurvey_quizzes','name',['id'=>$quizid])), 3);
-} else {
-    echo "<div class='embedded-quiz' style='padding:15px; border:1px solid #ccc; margin-bottom:20px;'>";
-    echo "<h4>Cuestionario: " . format_string($DB->get_field('learningstylesurvey_quizzes','name',['id'=>$quizid])) . "</h4>";
+require_login($courseid);
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/responder_quiz.php', ['id' => $quizid, 'courseid' => $courseid, 'embedded' => $embedded ? 1 : 0]));
+$PAGE->set_context(context_course::instance($courseid));
+$PAGE->set_title('Responder Cuestionario');
+$PAGE->set_heading('Responder Cuestionario');
+$PAGE->set_pagelayout('incourse'); // Esto hace que se vea dentro del estilo Moodle
+echo $OUTPUT->header();
+echo "<div class='box generalbox' style='padding: 20px; max-width: 800px; margin: 0 auto;'>";
+echo $OUTPUT->heading('Cuestionario: ' . format_string($DB->get_field('learningstylesurvey_quizzes','name',['id'=>$quizid])), 3);
+if ($embedded) {
+    $returnurl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid' => $courseid]);
+    echo "<div style='margin-bottom:15px;'><a href='" . $returnurl->out() . "' class='btn btn-secondary'>Regresar a la ruta</a></div>";
 }
 
 // Función para procesar envío
@@ -32,22 +32,21 @@ function process_quiz_submission($quizid, $courseid, $userid, $embedded = false)
     $correct = 0;
 
     foreach ($questions as $q) {
-        $userAnswer = optional_param("question{$q->id}", null, PARAM_INT);
-
-        // Obtener opciones ordenadas para comparar el índice
+        $userOptionId = optional_param("question{$q->id}", null, PARAM_INT);
         $options = $DB->get_records('learningstylesurvey_options', ['questionid' => $q->id]);
-        $options = array_values($options); // asegurar orden
-
-        // Buscar el índice de la opción correcta
-        $correctIndex = 0;
-        foreach ($options as $idx => $opt) {
-            if ($opt->is_correct) { // asumiendo que tienes un campo is_correct
-                $correctIndex = $idx;
-                break;
+        $selectedText = null;
+        if ($userOptionId !== null && isset($options[$userOptionId])) {
+            $selectedText = $options[$userOptionId]->optiontext;
+        } else {
+            // Buscar por id
+            foreach ($options as $opt) {
+                if ($opt->id == $userOptionId) {
+                    $selectedText = $opt->optiontext;
+                    break;
+                }
             }
         }
-
-        if ($userAnswer !== null && $userAnswer == $correctIndex) {
+        if ($selectedText !== null && trim($selectedText) === trim($q->correctanswer)) {
             $correct++;
         }
     }
@@ -90,9 +89,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $score = process_quiz_submission($quizid, $courseid, $userid, $embedded);
     echo "<div style='text-align:center; margin-top:20px;'>";
     echo "<h3>Resultado: {$score}%</h3>";
-    echo $score >= 70
-        ? "<p style='color:green; font-weight:bold;'>¡Aprobado!</p>"
-        : "<p style='color:red; font-weight:bold;'>Reprobado</p>";
+    if ($score >= 70) {
+        echo "<p style='color:green; font-weight:bold;'>¡Aprobado!</p>";
+        // Botón para continuar si hay salto programado
+        $step = $DB->get_record('learningpath_steps', ['pathid' => $courseid, 'resourceid' => $quizid, 'istest' => 1]);
+        if ($step && $step->passredirect) {
+            $nextstep = $DB->get_record('learningpath_steps', ['id' => $step->passredirect]);
+            if ($nextstep) {
+                                $nexturl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                    'courseid' => $courseid,
+                    'pathid' => $step->pathid,
+                    'stepid' => $nextstep->id
+                ]);
+                echo "<div style='margin-top:20px;'><a class='btn btn-success' href='" . $nexturl->out() . "'>Continuar a siguiente paso</a></div>";
+            }
+        }
+    } else {
+        echo "<p style='color:red; font-weight:bold;'>Reprobado</p>";
+        // Buscar salto a refuerzo
+        $step = $DB->get_record('learningpath_steps', ['pathid' => $courseid, 'resourceid' => $quizid, 'istest' => 1]);
+        if ($step && $step->failredirect) {
+            $refuerzostep = $DB->get_record('learningpath_steps', ['id' => $step->failredirect]);
+            if ($refuerzostep) {
+                                $refuerzourl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                    'courseid' => $courseid,
+                    'pathid' => $step->pathid,
+                    'stepid' => $refuerzostep->id
+                ]);
+                echo "<div style='margin-top:20px;'>";
+                echo "<a class='btn btn-warning' href='" . $refuerzourl->out() . "'>Ir al tema de refuerzo</a>";
+                echo "</div>";
+            }
+        }
+    }
+    
+    // Agregar botón volver en todos los casos
+    $returnurl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid' => $courseid]);
+    echo "<div style='margin-top:15px;'>";
+    echo "<a href='" . $returnurl->out() . "' class='btn btn-secondary'>Volver</a>";
+    echo "</div>";
+    
     echo "</div>";
 } else if ($result) {
     echo "<div style='text-align:center; margin-top:20px;'>";
@@ -121,12 +157,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($questions as $index => $q) {
         $options = $DB->get_records('learningstylesurvey_options', ['questionid' => $q->id]);
         echo "<fieldset style='margin-bottom:20px;'><legend><b>" . ($index + 1) . ". {$q->questiontext}</b></legend>";
-        $i = 0;
         foreach ($options as $opt) {
             echo "<label style='display:block; margin-bottom:6px;'>
-                    <input type='radio' name='question{$q->id}' value='{$i}'> {$opt->optiontext}
+                    <input type='radio' name='question{$q->id}' value='{$opt->id}'> {$opt->optiontext}
                   </label>";
-            $i++;
         }
         echo "</fieldset>";
     }

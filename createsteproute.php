@@ -16,14 +16,21 @@ $PAGE->set_heading("Ruta de Aprendizaje");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nombre = required_param('nombre', PARAM_TEXT);
-    $tema_id = required_param('tema', PARAM_INT);
+    $temas_hidden = optional_param('temas_hidden', '', PARAM_RAW);
+    $temas_ids = [];
+    if (!empty($temas_hidden)) {
+        $temas_ids = array_filter(explode(',', $temas_hidden));
+    }
     $evaluaciones = optional_param('evaluacion_hidden', '', PARAM_RAW);
 
-    // ✅ Buscar todos los recursos asociados al tema seleccionado
-    $archivos = $DB->get_records('learningstylesurvey_resources', [
-        'courseid' => $courseid,
-        'tema' => $tema_id
-    ]);
+    $archivos = [];
+    foreach ($temas_ids as $tema_id) {
+        $archivos_tema = $DB->get_records('learningstylesurvey_resources', [
+            'courseid' => $courseid,
+            'tema' => $tema_id
+        ]);
+        $archivos = array_merge($archivos, $archivos_tema);
+    }
 
     // Convertir evaluaciones seleccionadas (del campo oculto) a array
     $evaluaciones_array = [];
@@ -32,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (empty($archivos) && empty($evaluaciones_array)) {
-        redirect($baseurl, "Debe existir al menos un recurso o una evaluación para este tema.", 3);
+        redirect($baseurl, "Debe existir al menos un recurso o una evaluación para los temas seleccionados.", 3);
     }
 
     // ✅ Crear registro en learningstylesurvey_paths
@@ -42,6 +49,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ruta->name = $nombre;
     $ruta->timecreated = time();
     $pathid = $DB->insert_record('learningstylesurvey_paths', $ruta);
+
+    // ✅ Guardar los temas seleccionados en la tabla de asociación
+    foreach ($temas_ids as $orden => $tema_id) {
+        $record = new stdClass();
+        $record->pathid = $pathid;
+        $record->temaid = $tema_id;
+        $record->orden = $orden + 1;
+        $record->isrefuerzo = 0;
+        $DB->insert_record('learningstylesurvey_path_temas', $record);
+    }
+
+    // ✅ Insertar archivos en learningstylesurvey_path_files
+    foreach ($archivos as $resource) {
+        $rec = new stdClass();
+        $rec->pathid = $pathid;
+        $rec->filename = $resource->filename;
+        $rec->steporder = 0;
+        $DB->insert_record('learningstylesurvey_path_files', $rec);
+    }
+
+    // ✅ Insertar evaluaciones en learningstylesurvey_path_evaluations
+    foreach ($evaluaciones_array as $quizid) {
+        if ($DB->record_exists('learningstylesurvey_quizzes', ['id' => $quizid])) {
+            $rec = new stdClass();
+            $rec->pathid = $pathid;
+            $rec->quizid = $quizid;
+            $DB->insert_record('learningstylesurvey_path_evaluations', $rec);
+        }
+    }
 
     // ✅ Insertar pasos
     $stepnumber = 1;
@@ -90,8 +126,8 @@ echo $OUTPUT->heading("Crear Ruta de Aprendizaje");
     </div>
 
     <div style="margin-top:15px;">
-        <label><strong>Seleccionar tema:</strong></label><br>
-        <select name="tema" id="tema" style="width:100%; max-width:400px;" required>
+        <label><strong>Seleccionar temas:</strong></label><br>
+        <select id="tema_select" style="width:100%; max-width:400px;">
             <option value="">-- Seleccione un tema --</option>
             <?php foreach ($temas as $tema): ?>
                 <option value="<?php echo $tema->id; ?>">
@@ -99,7 +135,10 @@ echo $OUTPUT->heading("Crear Ruta de Aprendizaje");
                 </option>
             <?php endforeach; ?>
         </select>
-        <small style="color:gray;">Todos los archivos asociados a este tema se incluirán automáticamente.</small>
+        <button type="button" class="btn btn-info" onclick="agregarTema()">Agregar</button>
+        <ul id="temas_lista" style="margin-top:10px;"></ul>
+        <input type="hidden" name="temas_hidden" id="temas_hidden">
+        <small style="color:gray;">Todos los archivos asociados a los temas seleccionados se incluirán automáticamente.</small>
     </div>
 
     <div style="margin-top:15px;">
@@ -123,7 +162,40 @@ echo $OUTPUT->heading("Crear Ruta de Aprendizaje");
 </form>
 
 <script>
+let temasSeleccionados = [];
 let evaluacionesSeleccionadas = [];
+
+function agregarTema() {
+    const select = document.getElementById('tema_select');
+    const temaId = select.value;
+    const temaText = select.options[select.selectedIndex].text;
+
+    if (temaId && !temasSeleccionados.includes(temaId)) {
+        temasSeleccionados.push(temaId);
+
+        const ul = document.getElementById('temas_lista');
+        const li = document.createElement('li');
+        li.textContent = temaText;
+        li.setAttribute('data-id', temaId);
+
+        const btn = document.createElement('button');
+        btn.textContent = 'Quitar';
+        btn.className = 'btn btn-sm btn-danger ml-2';
+        btn.onclick = function() {
+            ul.removeChild(li);
+            temasSeleccionados = temasSeleccionados.filter(id => id !== temaId);
+            actualizarCampoTemas();
+        };
+        li.appendChild(btn);
+
+        ul.appendChild(li);
+        actualizarCampoTemas();
+    }
+}
+
+function actualizarCampoTemas() {
+    document.getElementById('temas_hidden').value = temasSeleccionados.join(',');
+}
 
 function agregarEvaluacion() {
     const select = document.getElementById('evaluacion_select');

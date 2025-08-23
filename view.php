@@ -22,13 +22,13 @@ echo $OUTPUT->heading("Menú principal");
 if (!has_capability('moodle/course:update', $context)) {
     echo "<div style='margin: 20px 0; text-align: center;'>";
     echo "<a href='vista_estudiante.php?courseid={$course->id}' style='text-decoration:none;'>";
-    echo "<button style='background:#0073e6; color:white; font-size:18px; padding:15px 25px; border:none; border-radius:8px; cursor:pointer;'>🧭 Comenzar Ruta Informativa</button>";
+    echo "<button style='background:#0073e6; color:white; font-size:18px; padding:15px 25px; border:none; border-radius:8px; cursor:pointer;'>🧭 Comenzar Ruta Aprendizaje Adaptativa</button>";
     echo "</a>";
     echo "</div>";
 
     // ✅ Opciones disponibles para estudiantes
     echo html_writer::start_tag('ul', ['style' => 'list-style:none; padding:0; text-align:center; font-size:18px;']);
-    echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/surveyform.php', ['id' => $id]), '📋 Responder encuesta', ['style' => 'display:block; margin:10px 0;']));
+    echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/surveyform.php', ['id' => $id]), '📋 Responder encuesta de estilos de aprendizaje', ['style' => 'display:block; margin:10px 0;']));
     echo html_writer::tag('li', html_writer::link(new moodle_url('/mod/learningstylesurvey/results.php', ['id' => $id]), '📊 Ver resultados', ['style' => 'display:block; margin:10px 0;']));
     echo html_writer::end_tag('ul');
 
