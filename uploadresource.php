@@ -158,9 +158,10 @@ if ($success) {
 </form>
 
 <div style="text-align: center; margin-top: 30px;">
-    <a href="view.php?id=<?= $cmid ?>&courseid=<?= $courseid ?>" class="btn btn-secondary" style="padding:10px 15px; border-radius:5px;">
-        Regresar al menú
-    </a>
+    <?php
+    $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid, 'courseid' => $courseid]);
+    echo '<a href="' . $viewurl->out() . '" class="btn btn-secondary" style="padding:10px 15px; border-radius:5px;">Regresar al menú</a>';
+    ?>
 </div>
 
 <?php

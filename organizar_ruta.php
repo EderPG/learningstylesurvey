@@ -28,11 +28,35 @@ $rutanombre = format_string($ruta->name);
 echo "<h2>Organizar Ruta: $rutanombre</h2>";
 echo "<p>Arrastra los pasos para cambiar el orden. Si es examen, define a qué paso redirigir según el resultado.</p>";
 
-// Siempre eliminar y repoblar los pasos para asegurar integridad
-$DB->delete_records('learningpath_steps', ['pathid' => $pathid]);
+// Solo recrear pasos si no existen o si están incompletos
+$existing_steps = $DB->get_records('learningpath_steps', ['pathid' => $pathid], 'stepnumber ASC');
+$need_recreation = false;
+
+// Verificar si necesitamos recrear los pasos
+if (empty($existing_steps)) {
+    $need_recreation = true;
+} else {
+    // Verificar que tengamos pasos para todos los temas y quizzes
+    $temas_ruta = $DB->get_records('learningstylesurvey_path_temas', ['pathid' => $pathid], 'orden ASC');
+    $total_recursos_esperados = 0;
+    foreach ($temas_ruta as $temas_ruta_obj) {
+        $recursos = $DB->get_records('learningstylesurvey_resources', ['tema' => $temas_ruta_obj->temaid]);
+        $total_recursos_esperados += count($recursos);
+    }
+    $quizzes = $DB->get_records_sql("SELECT q.* FROM {learningstylesurvey_quizzes} q JOIN {learningstylesurvey_path_evaluations} pe ON pe.quizid = q.id WHERE pe.pathid = ?", [$pathid]);
+    $total_esperado = $total_recursos_esperados + count($quizzes);
+    
+    if (count($existing_steps) < $total_esperado) {
+        $need_recreation = true;
+    }
+}
+
 $steps = [];
-// Crear pasos automáticamente usando los temas y recursos
-{
+if ($need_recreation) {
+    // Solo eliminar y recrear si es necesario
+    $DB->delete_records('learningpath_steps', ['pathid' => $pathid]);
+    
+    // Crear pasos automáticamente usando los temas y recursos
     $temas_ruta = $DB->get_records('learningstylesurvey_path_temas', ['pathid' => $pathid], 'orden ASC');
     $temas_ids = array_map(function($t) { return $t->temaid; }, $temas_ruta);
     $temas = $temas_ids ? $DB->get_records_list('learningstylesurvey_temas', 'id', $temas_ids) : [];
@@ -70,12 +94,22 @@ $steps = [];
     if ($total_insertados == 0) {
         echo "<div class='alert alert-warning'>No se encontraron recursos ni exámenes para esta ruta. La tabla de pasos está vacía.</div>";
     }
+} else {
+    // Usar pasos existentes sin recrear
+    $steps = $existing_steps;
 }
 
 // Obtener los temas asociados a la ruta y su orden
 $temas_ruta = $DB->get_records('learningstylesurvey_path_temas', ['pathid' => $pathid], 'orden ASC');
 $temas_ids = array_map(function($t) { return $t->temaid; }, $temas_ruta);
 $temas = $DB->get_records_list('learningstylesurvey_temas', 'id', $temas_ids);
+
+// Crear un índice de temas_ruta por temaid para fácil acceso
+$temas_ruta_by_id = [];
+foreach ($temas_ruta as $tr) {
+    $temas_ruta_by_id[$tr->temaid] = $tr;
+}
+
 $temas_pasos = [];
 $temas_refuerzo = [];
 foreach ($temas_ruta as $temas_ruta_obj) {
@@ -116,8 +150,8 @@ echo "<div id='tarjetas' style='margin-top:20px;'>";
     foreach ($temas_pasos as $temaid => $grupo) {
         if ($temaid === 'examenes') continue;
         $tema = $grupo['tema'];
-        // Buscar el registro de la asociación para este tema
-        $pathtema = isset($temas_ruta[$temaid]) ? $temas_ruta[$temaid] : null;
+        // Buscar el registro de la asociación para este tema usando el índice
+        $pathtema = isset($temas_ruta_by_id[$temaid]) ? $temas_ruta_by_id[$temaid] : null;
         $checked = ($pathtema && !empty($pathtema->isrefuerzo)) ? 'checked' : '';
         echo "<div class='card tema-card' data-id='{$temaid}' data-tipo='tema' style='background:white; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); margin-bottom:20px; padding:15px;'>";
         echo "<h3>" . format_string($tema->tema ?: 'Sin tema') . " <small style='color:gray;'>(tema)</small></h3>";
@@ -162,6 +196,8 @@ echo "<div id='tarjetas' style='margin-top:20px;'>";
             echo "<div style='margin-top:8px;'>";
             echo "<label>Salto si aprueba: <select class='redirect-pass' style='margin-left:5px;'>";
             echo "<option value='0'>-- Siguiente por orden --</option>";
+            
+            // Mostrar todos los temas de la ruta como opciones de salto
             foreach ($temas_ruta as $temas_ruta_obj) {
                 $temaid = $temas_ruta_obj->temaid;
                 $tema = $temas[$temaid];
@@ -175,10 +211,13 @@ echo "<div id='tarjetas' style='margin-top:20px;'>";
             }
             echo "</select></label>";
             echo "</div>";
+            
             // Selector para salto si reprueba
             echo "<div style='margin-top:8px;'>";
             echo "<label>Salto si reprueba: <select class='redirect-fail' style='margin-left:5px;'>";
             echo "<option value='0'>-- Siguiente por orden --</option>";
+            
+            // Mostrar todos los temas de la ruta como opciones de salto
             foreach ($temas_ruta as $temas_ruta_obj) {
                 $temaid = $temas_ruta_obj->temaid;
                 $tema = $temas[$temaid];

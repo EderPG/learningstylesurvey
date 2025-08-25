@@ -58,7 +58,10 @@ echo $OUTPUT->heading('Formulario para Crear Evaluación');
 
     <!-- ✅ Botón regresar -->
     <?php if ($cmid): ?>
-        <a href="view.php?id=<?php echo $cmid; ?>" class="btn btn-secondary">Regresar al menú</a>
+        <?php 
+        $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
+        echo '<a href="' . $viewurl->out() . '" class="btn btn-secondary">Regresar al menú</a>';
+        ?>
     <?php else: ?>
         <a href="<?php echo new moodle_url('/course/view.php', ['id' => $courseid]); ?>" class="btn btn-secondary">Regresar al curso</a>
     <?php endif; ?>

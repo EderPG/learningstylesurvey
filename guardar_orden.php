@@ -68,21 +68,26 @@ foreach ($data as $item) {
         $step = $DB->get_record('learningpath_steps', ['id' => $id]);
         if ($step) {
             $step->stepnumber = $orden;
+            // Los saltos apuntan a tema IDs, no a step IDs
             $step->passredirect = $passredirect;
             $step->failredirect = $failredirect;
             $DB->update_record('learningpath_steps', $step);
         } else {
-            // Si no existe, crear el paso (buscando el quiz)
-            $quiz = $DB->get_record('learningstylesurvey_quizzes', ['id' => $id]);
-            if ($quiz) {
-                // Necesitamos el pathid, lo buscamos por el primer tema de la ruta
-                $pathtema = $DB->get_records('learningstylesurvey_path_temas', null, '', 'pathid');
-                $pathid = $pathtema ? reset($pathtema)->pathid : 0;
+            // Si no existe el paso, buscar por quiz ID en lugar de step ID
+            $pathid = isset($item['pathid']) ? intval($item['pathid']) : 0;
+            if (!$pathid) {
+                // Obtener pathid desde cualquier paso existente
+                $anystep = $DB->get_record_sql("SELECT pathid FROM {learningpath_steps} LIMIT 1");
+                $pathid = $anystep ? $anystep->pathid : 0;
+            }
+            
+            if ($pathid) {
                 $newstep = new stdClass();
                 $newstep->pathid = $pathid;
                 $newstep->stepnumber = $orden;
-                $newstep->resourceid = $quiz->id;
+                $newstep->resourceid = $id; // En este caso $id sería el quizid
                 $newstep->istest = 1;
+                // Los saltos apuntan a tema IDs
                 $newstep->passredirect = $passredirect;
                 $newstep->failredirect = $failredirect;
                 $DB->insert_record('learningpath_steps', $newstep);

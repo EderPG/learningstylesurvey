@@ -105,7 +105,8 @@ if ($action === 'edit' && $quizid) {
         $cmid = $firstcm->id;
     }
     if ($cmid) {
-        echo '<a href="view.php?id=' . $cmid . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al menú</a>';
+        $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
+        echo '<a href="' . $viewurl->out() . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al menú</a>';
     } else {
         echo '<a href="' . new moodle_url('/course/view.php', ['id' => $courseid]) . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al curso</a>';
     }
@@ -176,7 +177,8 @@ if ($instances) {
 }
 
 if ($cmid) {
-    echo '<a href="view.php?id=' . $cmid . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al menú</a>';
+    $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
+    echo '<a href="' . $viewurl->out() . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al menú</a>';
 } else {
     echo '<a href="' . new moodle_url('/course/view.php', ['id' => $courseid]) . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al curso</a>';
 }

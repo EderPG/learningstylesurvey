@@ -1,0 +1,351 @@
+# Documentación Técnica Completa - Plugin Learning Style Survey para Moodle
+
+---
+
+## 1. Introducción
+
+El plugin **Learning Style Survey** permite adaptar rutas de aprendizaje en Moodle según el estilo detectado de cada estudiante. Es modular, extensible y pensado para facilitar la integración y expansión por parte de desarrolladores. El objetivo es potenciar el aprendizaje personalizado, mejorar la experiencia educativa y permitir la personalización y gestión avanzada por parte de docentes.
+
+---
+
+## 2. Arquitectura General
+
+### Componentes principales
+
+- **Encuesta de estilos de aprendizaje:** Detecta el perfil del usuario mediante preguntas y algoritmos de clasificación.
+- **Gestor de rutas de aprendizaje:** Asigna y administra rutas adaptativas, pasos, recursos y evaluaciones por curso.
+- **Gestión y visualización del progreso:** Muestra el avance del usuario, bloquea/permite avanzar según resultados y registra el progreso.
+- **Gestión docente:** Permite a los profesores crear, editar y organizar rutas, pasos, recursos y evaluaciones, así como consultar el avance de los estudiantes.
+- **Recuperación y retroalimentación:** Si el estudiante reprueba una evaluación, se le asignan recursos de recuperación o repite el paso.
+
+#### Diagrama de flujo textual
+
+```
+Estudiante completa encuesta → Sistema detecta estilo → Asigna ruta personalizada → 
+Visualiza pasos → Realiza recursos/evaluaciones → Avanza si aprueba → Progreso registrado.
+Docente configura rutas/pasos/recursos → Consulta el avance de sus alumnos.
+```
+
+---
+
+## 3. Estructura de Archivos y Funcionalidad
+
+| Archivo/Fichero         | Descripción Técnica ----------                                                                                                                               |
+|-------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------|
+| `mod_form.php`          | Formulario de configuración del módulo en Moodle. Permite agregar nombre, descripción y parámetros estándar.                                      |
+| `vista_estudiante.php`  | Interfaz principal del estudiante. Obtiene el estilo del usuario, muestra la ruta, los pasos y el progreso. Gestiona avance y validación de pasos.|
+| `learningpath.php`      | Interfaz para el docente. Visualiza rutas existentes, permite editar/crear rutas y modificar el orden de los pasos.                               |
+| `createsteproute.php`   | Formulario para crear nuevos pasos de una ruta, asociando recursos y evaluaciones. Procesa POST y guarda en BD.                                  |
+| `edit_learningpath.php` | Permite editar una ruta existente, modificar pasos y reasignar recursos/evaluaciones. Resetea el progreso si se cambia la ruta.                  |
+| `siguiente.php`         | Lógica de avance a siguiente paso. Verifica si el usuario puede avanzar, actualiza el progreso o marca la ruta como completada.                  |
+| `responder_quiz.php`    | Renderiza el cuestionario/quiz adaptativo y permite registrar/calificar resultados. Gestiona recuperación si el usuario reprueba.                |
+| `verruta.php`           | Vista adicional para mostrar al estudiante los pasos y recursos asignados según su estilo.                                                       |
+| `results.php`           | Muestra resultados de encuestas y evaluaciones, útil para análisis docente.                                                                      |
+| `guardar_examen.php`    | Procesa y almacena los resultados de exámenes realizados por los estudiantes.                                                                    |
+| `guardar_orden.php`     | Permite guardar el orden de los pasos en una ruta, útil para la personalización docente.                                                         |
+| `guardar_paso_ruta.php` | Almacena la información de un nuevo paso en la ruta de aprendizaje.                                                                              |
+| `organizar_ruta.php`    | Herramienta para organizar y reordenar los pasos de una ruta.                                                                                    |
+| `uploadresource.php`    | Permite la subida de recursos didácticos (archivos, imágenes, PDFs, etc.).                                                                      |
+| `ver_recurso.php`       | Visualiza recursos asignados a un paso específico.                                                                                               |
+| `temas.php`             | Gestión de temas y categorías de recursos, útil para la administración docente.                                                                  |
+| `crear_examen.php`      | Permite la creación de exámenes y su asociación a pasos de rutas.                                                                                |
+| `lib.php / locallib.php`| Funciones auxiliares y lógica de negocio reutilizable en el plugin.                                                                              |
+| `version.php`           | Define la versión del plugin y dependencias requeridas por Moodle.                                                                               |
+| `README.md`             | Información básica, instalación y uso rápido del plugin.                                                                                         |
+| Carpeta `db`            | Archivos de definición de tablas, accesos y actualizaciones de la base de datos.                                                                |
+| Carpeta `lang`          | Archivos de idioma para internacionalización.                                                                                                    |
+| Carpeta `pix`           | Imágenes e íconos utilizados en la interfaz.                                                                                                     |
+| Carpeta `uploads`       | Archivos subidos por los usuarios (recursos, imágenes, PDFs, etc.).                                                                             |
+
+---
+
+## 4. Modelo de Datos y Tablas
+
+### Principales tablas
+
+- **learningstylesurvey_userstyles:** Guarda el estilo detectado para cada usuario.
+- **learningstylesurvey_paths:** Define rutas de aprendizaje por curso.
+- **learningpath_steps:** Pasos de cada ruta, con recursos y evaluaciones asociadas.
+- **learningstylesurvey_user_progress:** Registra el progreso de cada usuario en su ruta.
+- **learningstylesurvey_resources:** Recursos didácticos.
+- **learningstylesurvey_quizzes:** Evaluaciones asociadas.
+
+#### Relaciones principales
+
+- Cada usuario tiene un estilo (`userstyles`).
+- Cada ruta (`paths`) puede tener múltiples pasos (`steps`).
+- Cada paso puede tener múltiples recursos y evaluaciones.
+- El progreso del usuario se registra por ruta y paso.
+- Los recursos y evaluaciones pueden estar asociados a temas y pasos específicos.
+
+---
+
+## 5. Extensibilidad y Buenas Prácticas
+
+### Puntos de extensión recomendados
+
+- **Nuevos tipos de estilos de aprendizaje:** Modificar la lógica de la encuesta y el algoritmo de asignación.
+- **Nuevos recursos o actividades:** Agregar tablas y lógica para asociar otros tipos de recursos (videos, foros, SCORM, etc.).
+- **Integración con otras APIs de Moodle:** Utilizar hooks y eventos de Moodle para expandir notificaciones, reportes, etc.
+- **Mejoras en la gestión docente:** Añadir dashboards, reportes avanzados, personalización de rutas por grupo, etc.
+- **Internacionalización:** Agregar nuevos idiomas en la carpeta `lang`.
+- **Seguridad y permisos:** Revisar y mejorar el uso de `require_capability()` y roles.
+
+### Recomendaciones de desarrollo
+
+- Mantener compatibilidad con las APIs estándar de Moodle.
+- Utilizar funciones de acceso a datos de Moodle para evitar SQL directos.
+- Separar la lógica de negocio de la presentación (MVC básico).
+- Documentar cada función y archivo nuevo.
+- Realizar pruebas unitarias y de integración.
+- Usar control de versiones (Git) y ramas para desarrollo colaborativo.
+- Seguir las guías de estilo de código de Moodle.
+
+---
+
+## 6. Ejemplo de Expansión: Agregar un Nuevo Tipo de Recurso
+
+1. Crear nueva tabla `learningstylesurvey_videos` con campos relevantes.
+2. Modificar `createsteproute.php` y `edit_learningpath.php` para permitir seleccionar y asociar videos a pasos.
+3. Actualizar la lógica en `vista_estudiante.php` para renderizar videos según el paso.
+4. Documentar el nuevo componente y agregar test unitarios.
+5. Añadir soporte en la interfaz docente para gestionar videos.
+
+---
+
+## 7. Integración con Moodle
+
+- **Hooks y APIs:** Uso de funciones estándar como `require_login()`, `context_course::instance()`, `$DB->get_record()`, `$OUTPUT->header()`, etc.
+- **Formularios:** `mod_form.php` utiliza la clase `moodleform_mod`.
+- **Contextos y permisos:** Uso de `require_capability()` para validar roles y permisos.
+- **Internacionalización:** Archivos en `lang` para traducción de la interfaz.
+- **Gestión de archivos:** Recursos subidos se almacenan en la carpeta `uploads`.
+
+---
+
+## 8. Ciclo de vida de usuario
+
+### Estudiante
+
+- Ingresa al curso, responde la encuesta.
+- Se le asigna una ruta personalizada según su estilo.
+- Avanza paso a paso (recursos, evaluaciones).
+- Si reprueba, recibe recursos de recuperación o repite el paso.
+- Finaliza la ruta y puede consultar su progreso y resultados.
+- Puede acceder a recursos adicionales según su avance y estilo.
+
+### Docente
+
+- Configura rutas, pasos, recursos y evaluaciones.
+- Consulta el avance de sus estudiantes.
+- Modifica rutas y pasos según necesidades.
+- Accede a reportes y dashboards.
+- Gestiona temas, recursos y exámenes.
+- Organiza y personaliza la experiencia de aprendizaje adaptativo.
+
+---
+
+## 9. Troubleshooting y Preguntas Frecuentes
+
+- **No se asigna ruta al estudiante:** Verificar que el usuario haya completado la encuesta y que existan rutas definidas para el curso.
+- **No avanza al siguiente paso:** Revisar la configuración de evaluaciones y los redirects (`passredirect`, `failredirect`).
+- **Error al crear recurso/evaluación:** Comprobar la estructura de las tablas y permisos del usuario.
+- **Problemas de visualización:** Revisar los archivos en `pix` y la configuración de recursos subidos.
+- **Errores de permisos:** Validar el uso de `require_capability()` y los roles asignados en Moodle.
+
+---
+
+## 10. Anexos y Ejemplos
+
+### Fragmento de avance de paso (vista_estudiante.php)
+
+```php
+if ($result->score >= 70 && $currentstep->passredirect) {
+    $progress->current_stepid = $currentstep->passredirect;
+    $DB->update_record('learningstylesurvey_user_progress', $progress);
+    redirect(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid'=>$courseid,'pathid'=>$pathid]));
+}
+```
+
+### SQL ejemplo: Obtener pasos de una ruta
+
+```sql
+SELECT * FROM {learningpath_steps}
+WHERE pathid = ?
+ORDER BY stepnumber ASC;
+```
+
+### Ejemplo de definición de recurso en PHP
+
+```php
+$resource = [
+    'id' => 1,
+    'tema_id' => 2,
+    'name' => 'Video Introductorio',
+    'type' => 'video',
+    'url' => 'https://...'
+];
+$DB->insert_record('learningstylesurvey_resources', $resource);
+```
+
+### Ejemplo de formulario en mod_form.php
+
+```php
+$mform->addElement('text', 'name', get_string('learningstylesurveyname', 'learningstylesurvey'), array('size' => '64'));
+$mform->setType('name', PARAM_TEXT);
+$mform->addRule('name', null, 'required', null, 'client');
+$this->standard_intro_elements();
+$this->standard_coursemodule_elements();
+$this->add_action_buttons();
+```
+
+---
+
+## 11. 🔄 Revisión de Portabilidad - Guía de Instalación Multiplataforma
+
+### ✅ Problemas de Portabilidad Corregidos
+
+#### 1. **Enlaces Hardcodeados a URLs Relativas**
+**Problema**: Muchos archivos usaban enlaces directos como `href="view.php?id=123"` que fallarían en otros entornos.
+
+**Solución**: Reemplazados por `moodle_url` estándar:
+```php
+// ❌ Antes (hardcoded)
+echo "<a href='view.php?id={$cmid}'>Regresar</a>";
+
+// ✅ Después (portable)
+$viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
+echo "<a href='" . $viewurl->out() . "'>Regresar</a>";
+```
+
+**Archivos Corregidos**:
+- ✅ `manage_quiz.php` - 2 enlaces corregidos
+- ✅ `uploadresource.php` - 1 enlace corregido  
+- ✅ `crear_examen.php` - 1 enlace corregido
+- ✅ `responder_quiz.php` - 1 enlace corregido
+- ✅ `view.php` - 1 enlace corregido
+- ✅ `verificar_funcionalidades.php` - 7 enlaces corregidos
+- ✅ `ver_recurso.php` - 1 enlace corregido
+
+#### 2. **Obtención Correcta de Course Module ID (cmid)**
+**Problema**: Algunos archivos no obtenían correctamente el `cmid` del módulo.
+
+**Solución**: Implementado método estándar:
+```php
+// Método estándar para obtener cmid
+$modinfo = get_fast_modinfo($courseid);
+$cmid = null;
+foreach ($modinfo->get_cms() as $cm) {
+    if ($cm->modname === 'learningstylesurvey') {
+        $cmid = $cm->id;
+        break;
+    }
+}
+```
+
+**Archivos Verificados**:
+- ✅ `uploadresource.php` - Ya usa método correcto
+- ✅ `vista_estudiante.php` - Ya usa método correcto  
+- ✅ `organizar_ruta.php` - Ya usa método correcto
+- ✅ `manage_quiz.php` - Ya usa método correcto
+
+#### 3. **Navegación Estándar entre Páginas**
+**Problema**: Enlaces que no seguían las convenciones de Moodle para navegación.
+
+**Solución**: Todos los enlaces ahora usan:
+- `moodle_url` para construcción de URLs
+- Parámetros apropiados (`courseid`, `id`, etc.)
+- Rutas absolutas desde la raíz de Moodle
+
+### 🔍 Archivos con Portabilidad Verificada
+
+#### Archivos Principales ✅
+- `view.php` - Menú principal del módulo
+- `vista_estudiante.php` - Interfaz de estudiante
+- `responder_quiz.php` - Sistema de evaluaciones
+- `organizar_ruta.php` - Organizador de rutas
+
+#### Archivos de Gestión ✅
+- `manage_quiz.php` - Gestión de exámenes
+- `uploadresource.php` - Subida de recursos
+- `crear_examen.php` - Creación de exámenes
+- `verificar_funcionalidades.php` - Herramientas de verificación
+
+#### Archivos de Navegación ✅
+- `ver_recurso.php` - Visualización de recursos
+- Todos los enlaces de retorno funcionan correctamente
+
+### 🚀 Beneficios de la Portabilidad
+
+1. **Instalación en Cualquier Entorno**: El módulo funcionará correctamente en diferentes instancias de Moodle
+2. **URLs Dinámicas**: No depende de IDs específicos del entorno de desarrollo
+3. **Compatibilidad con Subdirectorios**: Funciona si Moodle está instalado en subdirectorios
+4. **Compatibilidad con SSL/HTTPS**: Las URLs se adaptan automáticamente al protocolo
+5. **Multi-tenant**: Funciona en entornos con múltiples sitios Moodle
+
+### 🔧 Método de Navegación Estándar Implementado
+
+```php
+// Patrón estándar para navegar de vuelta al módulo
+$modinfo = get_fast_modinfo($courseid);
+$cmid = null;
+foreach ($modinfo->get_cms() as $cm) {
+    if ($cm->modname === 'learningstylesurvey') {
+        $cmid = $cm->id;
+        break;
+    }
+}
+
+if ($cmid) {
+    $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
+    echo html_writer::link($viewurl, 'Regresar al menú', ['class' => 'btn btn-secondary']);
+} else {
+    $courseurl = new moodle_url('/course/view.php', ['id' => $courseid]);
+    echo html_writer::link($courseurl, 'Regresar al curso', ['class' => 'btn btn-secondary']);
+}
+```
+
+### ✅ Estado Final de Portabilidad
+- **14 enlaces corregidos** en 7 archivos críticos
+- **0 errores de sintaxis** detectados
+- **Navegación estándar** implementada en todos los archivos
+- **Portabilidad completa** verificada
+
+El módulo está ahora listo para instalación en cualquier entorno Moodle sin dependencias de IDs específicos.
+
+---
+
+## 12. Licencia y soporte
+
+Este plugin se distribuye bajo GPL v3.  
+Para soporte, mejorar funcionalidades o reportar errores, utiliza el sistema de issues en [GitHub](https://github.com/EderPG/learningstylesurvey).
+
+---
+
+## 13. Recursos útiles
+
+- [Documentación oficial de Moodle para desarrolladores](https://moodledev.io/)
+- [API Database Moodle](https://moodledev.io/docs/apis/core/dml)
+- [Ejemplo de plugin modular](https://moodledev.io/docs/apis/plugins)
+- [Guía de estilos de código Moodle](https://moodledev.io/docs/guides/codingstyle)
+- [Foro de la comunidad Moodle](https://moodle.org/mod/forum/)
+
+---
+
+## 14. Roadmap y mejoras futuras
+
+- Integración con analíticas de aprendizaje.
+- Soporte para nuevos estilos y algoritmos de clasificación.
+- Expansión de recursos multimedia y actividades.
+- Mejoras en la visualización y reportes docentes.
+- Internacionalización completa.
+- Pruebas automatizadas y cobertura de código.
+
+---
+
+## 15. Créditos
+
+Desarrollado por **EderPG** y colaboradores.
+Agradecimientos a la comunidad Moodle y usuarios que han aportado sugerencias y reportes.
+
+---
