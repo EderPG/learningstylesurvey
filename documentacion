@@ -20,7 +20,7 @@ El plugin **Learning Style Survey** permite adaptar rutas de aprendizaje en Mood
 
 #### Diagrama de flujo textual
 
-```
+```text
 Estudiante completa encuesta → Sistema detecta estilo → Asigna ruta personalizada → 
 Visualiza pasos → Realiza recursos/evaluaciones → Avanza si aprueba → Progreso registrado.
 Docente configura rutas/pasos/recursos → Consulta el avance de sus alumnos.
@@ -206,9 +206,11 @@ $this->add_action_buttons();
 ### ✅ Problemas de Portabilidad Corregidos
 
 #### 1. **Enlaces Hardcodeados a URLs Relativas**
+
 **Problema**: Muchos archivos usaban enlaces directos como `href="view.php?id=123"` que fallarían en otros entornos.
 
 **Solución**: Reemplazados por `moodle_url` estándar:
+
 ```php
 // ❌ Antes (hardcoded)
 echo "<a href='view.php?id={$cmid}'>Regresar</a>";
@@ -219,6 +221,7 @@ echo "<a href='" . $viewurl->out() . "'>Regresar</a>";
 ```
 
 **Archivos Corregidos**:
+
 - ✅ `manage_quiz.php` - 2 enlaces corregidos
 - ✅ `uploadresource.php` - 1 enlace corregido  
 - ✅ `crear_examen.php` - 1 enlace corregido
@@ -228,9 +231,11 @@ echo "<a href='" . $viewurl->out() . "'>Regresar</a>";
 - ✅ `ver_recurso.php` - 1 enlace corregido
 
 #### 2. **Obtención Correcta de Course Module ID (cmid)**
+
 **Problema**: Algunos archivos no obtenían correctamente el `cmid` del módulo.
 
 **Solución**: Implementado método estándar:
+
 ```php
 // Método estándar para obtener cmid
 $modinfo = get_fast_modinfo($courseid);
@@ -244,15 +249,18 @@ foreach ($modinfo->get_cms() as $cm) {
 ```
 
 **Archivos Verificados**:
+
 - ✅ `uploadresource.php` - Ya usa método correcto
 - ✅ `vista_estudiante.php` - Ya usa método correcto  
 - ✅ `organizar_ruta.php` - Ya usa método correcto
 - ✅ `manage_quiz.php` - Ya usa método correcto
 
 #### 3. **Navegación Estándar entre Páginas**
+
 **Problema**: Enlaces que no seguían las convenciones de Moodle para navegación.
 
 **Solución**: Todos los enlaces ahora usan:
+
 - `moodle_url` para construcción de URLs
 - Parámetros apropiados (`courseid`, `id`, etc.)
 - Rutas absolutas desde la raíz de Moodle
@@ -260,18 +268,21 @@ foreach ($modinfo->get_cms() as $cm) {
 ### 🔍 Archivos con Portabilidad Verificada
 
 #### Archivos Principales ✅
+
 - `view.php` - Menú principal del módulo
 - `vista_estudiante.php` - Interfaz de estudiante
 - `responder_quiz.php` - Sistema de evaluaciones
 - `organizar_ruta.php` - Organizador de rutas
 
 #### Archivos de Gestión ✅
+
 - `manage_quiz.php` - Gestión de exámenes
 - `uploadresource.php` - Subida de recursos
 - `crear_examen.php` - Creación de exámenes
 - `verificar_funcionalidades.php` - Herramientas de verificación
 
 #### Archivos de Navegación ✅
+
 - `ver_recurso.php` - Visualización de recursos
 - Todos los enlaces de retorno funcionan correctamente
 
@@ -306,6 +317,7 @@ if ($cmid) {
 ```
 
 ### ✅ Estado Final de Portabilidad
+
 - **14 enlaces corregidos** en 7 archivos críticos
 - **0 errores de sintaxis** detectados
 - **Navegación estándar** implementada en todos los archivos
