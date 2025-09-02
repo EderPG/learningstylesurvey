@@ -21,31 +21,62 @@ if (!$courseid) {
     // Intentar obtener cursos de diferentes maneras según las tablas disponibles
     $courses = [];
     
-    // Opción 1: Desde la tabla de rutas (más probable)
+    // Opción 1: Desde course_modules (más confiable)
     try {
         $courses = $DB->get_records_sql("
             SELECT DISTINCT c.id, c.fullname 
             FROM {course} c 
-            JOIN {learningstylesurvey_paths} lp ON lp.courseid = c.id
+            JOIN {course_modules} cm ON cm.course = c.id
+            JOIN {modules} m ON m.id = cm.module AND m.name = 'learningstylesurvey'
+            WHERE c.id > 1
             ORDER BY c.fullname
         ");
-    } catch (Exception $e) {
-        // Si falla, intentar desde la tabla principal del módulo
-        try {
+        
+        if (empty($courses)) {
+            // Opción 2: Desde la instancia principal del módulo
             $courses = $DB->get_records_sql("
                 SELECT DISTINCT c.id, c.fullname 
                 FROM {course} c 
-                JOIN {course_modules} cm ON cm.course = c.id
-                JOIN {modules} m ON m.id = cm.module AND m.name = 'learningstylesurvey'
+                JOIN {learningstylesurvey} ls ON ls.course IS NULL OR ls.course = c.id
+                WHERE c.id > 1
                 ORDER BY c.fullname
             ");
+        }
+        
+        if (empty($courses)) {
+            // Opción 3: Desde rutas existentes
+            $courses = $DB->get_records_sql("
+                SELECT DISTINCT c.id, c.fullname 
+                FROM {course} c 
+                JOIN {learningstylesurvey_paths} lp ON lp.courseid = c.id
+                ORDER BY c.fullname
+            ");
+        }
+        
+    } catch (Exception $e) {
+        echo "<div style='color:red;'>Error al obtener cursos: " . $e->getMessage() . "</div>";
+        
+        // Última opción: Mostrar todos los cursos disponibles
+        try {
+            $courses = $DB->get_records_sql("
+                SELECT id, fullname 
+                FROM {course} 
+                WHERE id > 1 
+                ORDER BY fullname
+            ");
+            echo "<div style='color:blue;'>ℹ️ Mostrando todos los cursos disponibles (puede que no tengan el módulo instalado):</div>";
         } catch (Exception $e2) {
-            echo "<div style='color:red;'>Error al obtener cursos: " . $e2->getMessage() . "</div>";
+            echo "<div style='color:red;'>Error crítico: " . $e2->getMessage() . "</div>";
         }
     }
     
     if (empty($courses)) {
-        echo "<div style='color:orange;'>⚠️ No se encontraron cursos con módulos learningstylesurvey</div>";
+        echo "<div style='color:orange;'>⚠️ No se encontraron cursos. Verifica que:</div>";
+        echo "<ul>";
+        echo "<li>El módulo esté instalado en algún curso</li>";
+        echo "<li>Hayas agregado una instancia del módulo a un curso</li>";
+        echo "<li>La base de datos esté funcionando correctamente</li>";
+        echo "</ul>";
         
         // Mostrar información de debug sobre las tablas disponibles
         echo "<h4>🔧 Información de Debug:</h4>";
