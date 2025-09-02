@@ -31,7 +31,8 @@ if (preg_match('/\.(jpg|jpeg|png|gif)$/i', $filename)) {
 }
 
 echo "<div style='margin-top:20px; text-align:center;'>";
-echo "<a href='vista_estudiante.php?courseid={$courseid}' class='btn btn-secondary'>Volver</a>";
+$volver_url = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid' => $courseid]);
+echo "<a href='" . $volver_url->out() . "' class='btn btn-secondary'>Volver</a>";
 echo "</div>";
 
 echo $OUTPUT->footer();
