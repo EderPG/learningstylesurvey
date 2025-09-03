@@ -355,7 +355,247 @@ Para soporte, mejorar funcionalidades o reportar errores, utiliza el sistema de 
 
 ---
 
-## 15. Créditos
+## 15. Observaciones Críticas y Lecciones Aprendidas
+
+### 🚨 **Problemas Comunes y Soluciones**
+
+Esta sección documenta problemas críticos encontrados durante el desarrollo y mantenimiento del sistema, así como sus soluciones implementadas para evitar futuros errores.
+
+#### **15.1. Sistema de Evaluación de Exámenes**
+
+**Problema identificado:**
+- El sistema de evaluación de exámenes no funcionaba correctamente
+- Todas las respuestas se marcaban como incorrectas independientemente de la respuesta seleccionada
+- Múltiples intentos no se registraban correctamente
+
+**Causa raíz:**
+1. **Inconsistencia en índices**: El sistema usa índices empezando desde 0 (0, 1, 2, 3) pero la lógica de evaluación calculaba desde 1
+2. **Orden de opciones**: Las opciones no se ordenaban consistentemente entre creación, edición y evaluación
+3. **Actualización vs nuevos registros**: Los intentos de examen actualizaban el mismo registro en lugar de crear nuevos
+
+**Solución implementada:**
+```php
+// ✅ CORRECTO: Índices consistentes empezando desde 0
+$optionIndex = 0; // No desde 1
+foreach ($options as $opt) {
+    if ($opt->id == $userOptionId) {
+        $selectedIndex = $optionIndex;
+        break;
+    }
+    $optionIndex++;
+}
+
+// ✅ CORRECTO: Ordenar opciones consistentemente
+$options = $DB->get_records('learningstylesurvey_options', 
+    ['questionid' => $q->id], 'id ASC');
+
+// ✅ CORRECTO: Cada intento es un nuevo registro
+$DB->insert_record('learningstylesurvey_quiz_results', $record);
+// NO: $DB->update_record() que mantiene el mismo registro
+```
+
+**Archivos afectados:**
+- `responder_quiz.php`: Lógica de evaluación
+- `manage_quiz.php`: Edición de exámenes  
+- `crear_examen.php`: Creación de exámenes
+- `guardar_examen.php`: Guardado de exámenes
+
+#### **15.2. Estructura de Base de Datos y Tablas**
+
+**Problema identificado:**
+- Errores por tablas inexistentes (`mdl_learningstylesurvey_quiz` vs `mdl_learningstylesurvey_quizzes`)
+- Confusión entre tabla de install.xml vs upgrade.php
+- Campos inexistentes (`temaid` vs `tema`)
+
+**Tablas REALES que existen:**
+
+```sql
+-- === DESDE INSTALL.XML (instalación inicial) ===
+
+-- Tabla principal del módulo
+learningstylesurvey                    -- Instancia principal del módulo
+
+-- Gestión de estilos de aprendizaje
+learningstylesurvey_results            -- Estilo más fuerte del alumno (OBSOLETA)
+learningstylesurvey_userstyles         -- Estilo asignado a cada usuario (ACTUAL)
+learningstylesurvey_responses          -- Respuestas individuales de la encuesta
+
+-- Sistema de rutas de aprendizaje
+learningstylesurvey_learningpath       -- Ruta de aprendizaje (sistema original)
+learningstylesurvey_paths              -- Rutas personalizadas (sistema nuevo)
+learningpath_steps                     -- Pasos de la ruta (sistema original activo)
+learningstylesurvey_user_progress      -- Progreso de usuarios en rutas
+
+-- Gestión de recursos
+learningstylesurvey_resources          -- Archivos subidos (campo: tema, NO temaid)
+learningstylesurvey_inforoute          -- Pasos informativos de una ruta
+learningstylesurvey_path_files         -- Archivos por ruta
+
+-- Sistema de evaluaciones/quizzes
+learningstylesurvey_quizzes            -- Cuestionarios (NO: learningstylesurvey_quiz)
+learningstylesurvey_questions          -- Preguntas de quizzes
+learningstylesurvey_options            -- Opciones por pregunta
+learningstylesurvey_quiz_results       -- Resultados de quizzes
+learningstylesurvey_path_evaluations   -- Evaluaciones por ruta
+
+-- Gestión de temas
+learningstylesurvey_temas              -- Temas registrados por curso
+
+-- === DESDE UPGRADE.PHP (actualizaciones) ===
+learningstylesurvey_path_temas         -- Relación rutas-temas (solo por upgrade)
+learningstylesurvey_path_evaluations   -- También definida en upgrade scripts
+```
+
+**Campos críticos por tabla:**
+
+```sql
+-- learningstylesurvey_resources
+- id, courseid, name, filename, style, tema, recoveryquizid
+- ⚠️ Campo es 'tema' (NO 'temaid')
+- ⚠️ 'userid' es del profesor que creó el recurso, NO del estudiante
+
+-- learningstylesurvey_quizzes  
+- id, name, userid, timecreated, courseid, orden
+- ⚠️ Nombre correcto es 'quizzes' (NO 'quiz')
+
+-- learningstylesurvey_questions
+- id, quizid, questiontext, correctanswer
+- ⚠️ 'correctanswer' puede ser índice numérico (0,1,2,3) o texto
+
+-- learningstylesurvey_options
+- id, questionid, optiontext
+- ⚠️ Ordenar siempre por 'id ASC' para consistencia
+
+-- learningpath_steps (SISTEMA PRINCIPAL ACTIVO)
+- id, pathid, stepnumber, resourceid, istest, passredirect, failredirect
+- ⚠️ Esta tabla sigue siendo la principal para navegación
+
+-- learningstylesurvey_userstyles
+- id, userid, style, timecreated  
+- ⚠️ Usar ORDER BY timecreated DESC LIMIT 1 para obtener estilo más reciente
+```
+
+**Lección aprendida:**
+- **SIEMPRE revisar install.xml Y upgrade.php** antes de asumir estructura de tablas
+- **Verificar nombres exactos** de tablas y campos
+- **No asumir** que tablas mencionadas en código existen sin verificar
+
+#### **15.3. Sistema de Rutas Adaptativas vs Sistema Original**
+
+**Problema identificado:**
+- Mezcla entre sistema original (`learningpath_steps`) y nuevo sistema (`learningstylesurvey_path_temas`)
+- Consultas que fallaban por usar tablas incorrectas
+
+**Sistema híbrido actual:**
+```php
+// Sistema ORIGINAL (funcional)
+learningpath_steps -> Para navegación principal
+learningstylesurvey_resources -> Para recursos filtrados por estilo
+
+// Sistema NUEVO (de upgrade scripts)  
+learningstylesurvey_path_temas -> Para gestión de temas en rutas
+learningstylesurvey_path_evaluations -> Para evaluaciones en rutas
+```
+
+**Recomendación:**
+- Mantener compatibilidad con sistema original mientras se migra gradualmente
+- No asumir que nuevas tablas reemplazan completamente las originales
+
+#### **15.4. Filtrado de Recursos por Estilo de Aprendizaje**
+
+**Problema identificado:**
+- Recursos no se mostraban aunque existían en la base de datos
+- Case sensitivity en comparación de estilos
+- Filtrado incorrecto por usuario
+
+**Solución:**
+```php
+// ✅ CORRECTO: Normalización de estilos (case-insensitive)
+$style = strtolower(trim($userstyle->style));
+
+// ✅ CORRECTO: Filtrado correcto (SIN userid del estudiante)
+$recursos = $DB->get_records('learningstylesurvey_resources', [
+    'tema' => $tema_id,
+    'style' => $style,
+    'courseid' => $courseid
+    // NO: 'userid' => $USER->id (es del profesor que creó el recurso)
+]);
+```
+
+#### **15.5. Sistema de Saltos de Exámenes y Refuerzo**
+
+**Problema identificado:**
+- Estudiantes enviados incorrectamente a temas de refuerzo después de aprobar exámenes
+- Sistema consideraba cualquier examen reprobado del curso, no específico de la ruta
+
+**Solución:**
+```php
+// ✅ CORRECTO: Solo considerar exámenes de la ruta específica
+$lastquiz = $DB->get_record_sql("
+    SELECT qr.*, s.failredirect 
+    FROM {learningstylesurvey_quiz_results} qr
+    JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
+    WHERE qr.userid = ? AND qr.courseid = ? AND s.pathid = ?
+    ORDER BY qr.timecompleted DESC 
+    LIMIT 1
+", [$USER->id, $courseid, $pathid]);
+```
+
+### 🔧 **Mejores Prácticas Implementadas**
+
+#### **A. Verificación de Estructura de BD**
+```bash
+# Antes de modificar código, SIEMPRE verificar:
+1. Revisar db/install.xml para tablas base
+2. Revisar db/upgrade.php para nuevas tablas  
+3. Verificar nombres exactos de campos
+4. Probar consultas en phpmyadmin/CLI antes de implementar
+```
+
+#### **B. Consistencia en Índices**
+```php
+// Mantener CONSISTENCIA en todo el sistema:
+// Creación: índices 0, 1, 2, 3
+// Edición: índices 0, 1, 2, 3  
+// Evaluación: índices 0, 1, 2, 3
+// NO mezclar sistemas de índices
+```
+
+#### **C. Debug y Logging**
+```php
+// Implementar debug temporal para diagnóstico:
+error_log("Question {$q->id}: Selected='$selectedText' vs Correct='{$q->correctanswer}'");
+
+// Activable con parámetros URL:
+$debug_info = optional_param('debug', 0, PARAM_INT);
+if ($debug_info) {
+    // Mostrar información de diagnóstico
+}
+```
+
+#### **D. Gestión de Intentos de Examen**
+```php
+// ✅ CORRECTO: Cada intento = nuevo registro
+$DB->insert_record('learningstylesurvey_quiz_results', $record);
+
+// ❌ INCORRECTO: Actualizar mismo registro
+// $DB->update_record('learningstylesurvey_quiz_results', $record);
+```
+
+### 📝 **Checklist para Futuras Modificaciones**
+
+Antes de modificar el sistema de evaluación:
+- [ ] ✅ Verificar estructura de tablas en install.xml y upgrade.php
+- [ ] ✅ Mantener consistencia de índices (empezar desde 0)
+- [ ] ✅ Ordenar opciones consistentemente (`ORDER BY id ASC`)
+- [ ] ✅ Probar con datos reales antes de deployment
+- [ ] ✅ Implementar debug temporal durante desarrollo
+- [ ] ✅ Verificar que filtros de estilo usen normalización
+- [ ] ✅ Confirmar que saltos de examen filtren por ruta específica
+
+---
+
+## 16. Créditos
 
 Desarrollado por **EderPG** y colaboradores.
 Agradecimientos a la comunidad Moodle y usuarios que han aportado sugerencias y reportes.

@@ -42,7 +42,9 @@ foreach ($questions as $q) {
     $question = new stdClass();
     $question->quizid = $quizid;
     $question->questiontext = trim($q['text']);
-    $question->correctanswer = $options[$q['answer']] ?? ''; // Correcta según índice
+    $question->correctanswer = (int)$q['answer']; // ✅ Guardar el índice numérico de la respuesta correcta
+    $question->timecreated = time();
+    $question->timemodified = time();
     $questionid = $DB->insert_record('learningstylesurvey_questions', $question);
 
     foreach ($options as $opt) {

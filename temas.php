@@ -25,6 +25,7 @@ if (optional_param('submit', false, PARAM_BOOL)) {
     if ($tema !== '' && $postcourseid == $courseid) {
         $record = (object)[
             'courseid'    => $courseid,
+            'userid'      => $USER->id, // ✅ Agregar userid para filtrado
             'tema'        => $tema,
             'timecreated' => time()
         ];
@@ -39,8 +40,8 @@ if (optional_param('submit', false, PARAM_BOOL)) {
 $deleteid = optional_param('deleteid', 0, PARAM_INT);
 if ($deleteid > 0) {
     require_sesskey();
-    // Verifica que el tema pertenece al curso actual
-    $tema = $DB->get_record('learningstylesurvey_temas', ['id' => $deleteid, 'courseid' => $courseid]);
+    // ✅ Verifica que el tema pertenece al curso actual Y al usuario actual
+    $tema = $DB->get_record('learningstylesurvey_temas', ['id' => $deleteid, 'courseid' => $courseid, 'userid' => $USER->id]);
     if ($tema) {
         $DB->delete_records('learningstylesurvey_temas', ['id' => $deleteid]);
         redirect(new moodle_url($PAGE->url, ['courseid' => $courseid]));
@@ -86,8 +87,8 @@ echo html_writer::end_tag('form');
 
 echo html_writer::tag('hr', '');
 
-// Mostrar lista de temas existentes
-$temas = $DB->get_records('learningstylesurvey_temas', ['courseid' => $courseid], 'timecreated DESC');
+// Mostrar lista de temas existentes - ✅ Solo los del usuario actual
+$temas = $DB->get_records('learningstylesurvey_temas', ['courseid' => $courseid, 'userid' => $USER->id], 'timecreated DESC');
 echo html_writer::tag('h3', 'Temas registrados');
 
 if ($temas) {

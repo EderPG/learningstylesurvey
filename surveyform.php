@@ -85,14 +85,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Insertar nuevo resultado
     $result = new stdClass();
     $result->userid = $USER->id;
-    $result->strongeststyle = $strongest;
+    $result->strongeststyle = strtolower($strongest); // Normalizar a minúsculas
     $result->timecreated = $now;
     $DB->insert_record('learningstylesurvey_results', $result);
 
     // Guardar estilo del usuario para filtrado futuro
     $userstyle = new stdClass();
     $userstyle->userid = $USER->id;
-    $userstyle->style = $strongest;
+    $userstyle->style = strtolower($strongest); // Normalizar a minúsculas
     $userstyle->timemodified = $now;
     $DB->insert_record('learningstylesurvey_userstyles', $userstyle);
 

@@ -17,7 +17,10 @@ echo $OUTPUT->header();
 echo "<div class='container' style='max-width:1000px; margin:30px auto; padding:15px;'>";
 
 
-$ruta = $DB->get_record('learningstylesurvey_paths', ['id' => $pathid]);
+$ruta = $DB->get_record('learningstylesurvey_paths', ['id' => $pathid, 'userid' => $USER->id]);
+if (!$ruta) {
+    print_error('No tienes permisos para acceder a esta ruta.');
+}
 if (!$ruta) {
     echo "<div class='alert alert-danger'>Error: La ruta con ID $pathid no existe. No se pueden guardar los pasos.</div>";
     echo $OUTPUT->footer();
