@@ -68,7 +68,37 @@ if (!$userstyle) {
     echo $OUTPUT->footer();
     exit;
 }
-$style = $userstyle->style;
+$style = $userstyle->style; // El estilo ya viene normalizado desde la base de datos
+
+// Debug temporal - mostrar información del filtrado
+$debug_info = optional_param('debug', 0, PARAM_INT);
+if ($debug_info) {
+    echo "<div class='alert alert-info'>";
+    echo "<h4>Debug - Información de filtrado:</h4>";
+    echo "<p><strong>Usuario:</strong> {$USER->id}</p>";
+    echo "<p><strong>Estilo original:</strong> {$userstyle->style}</p>";
+    echo "<p><strong>Estilo normalizado:</strong> {$style}</p>";
+    echo "<p><strong>Curso:</strong> {$courseid}</p>";
+    
+    // Mostrar recursos disponibles
+    $all_resources = $DB->get_records('learningstylesurvey_resources', ['courseid' => $courseid]);
+    echo "<p><strong>Recursos totales en el curso:</strong> " . count($all_resources) . "</p>";
+    
+    $style_resources = $DB->get_records('learningstylesurvey_resources', [
+        'courseid' => $courseid,
+        'style' => $style
+    ]);
+    echo "<p><strong>Recursos para estilo '{$style}':</strong> " . count($style_resources) . "</p>";
+    
+    if ($style_resources) {
+        echo "<ul>";
+        foreach ($style_resources as $res) {
+            echo "<li>ID: {$res->id}, Tema: {$res->tema}, Archivo: {$res->filename}</li>";
+        }
+        echo "</ul>";
+    }
+    echo "</div>";
+}
 
 // Obtener ruta más reciente si no se pasa pathid
 if (!$pathid) {
@@ -87,7 +117,7 @@ if (!$pathid) {
 // --- FLUJO ADAPTADO ---
 echo $OUTPUT->header();
 echo "<div class='container' style='max-width:900px; margin:20px auto;'>";
-echo "<h2>Ruta de Aprendizaje ({$style})</h2>";
+echo "<h2>Ruta de Aprendizaje (" . ucfirst($style) . ")</h2>";
 
 // Manejar saltos adaptativos por tema
 if ($tema_salto) {
@@ -142,22 +172,52 @@ if ($tema_refuerzo) {
         }
         
         // Buscar el examen que se reprobó para permitir reintento
+        // Buscar exámenes que tengan salto de fallo configurado hacia este tema de refuerzo
         $lastquiz = $DB->get_record_sql("
-            SELECT qr.*, s.* FROM {learningstylesurvey_quiz_results} qr
+            SELECT qr.*, s.*, ls_target.stepnumber as target_step 
+            FROM {learningstylesurvey_quiz_results} qr
             JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
-            WHERE qr.userid = ? AND qr.courseid = ? AND s.failredirect = ?
+            JOIN {learningpath_steps} ls_target ON ls_target.stepnumber = s.failredirect AND ls_target.pathid = s.pathid
+            JOIN {learningstylesurvey_resources} res ON res.id = ls_target.resourceid
+            WHERE qr.userid = ? AND qr.courseid = ? AND res.tema = ? AND qr.score < 70
             ORDER BY qr.timecompleted DESC LIMIT 1
         ", [$USER->id, $courseid, $tema_refuerzo]);
         
         if ($lastquiz) {
-            echo "<div style='margin-top:30px;'><h4>Después de estudiar el refuerzo, puedes volver a intentar el examen</h4>";
+            echo "<div style='margin-top:30px; padding: 15px; background: #e7f3ff; border-left: 4px solid #007bff; border-radius: 5px;'>";
+            echo "<h4 style='margin-top: 0;'>💡 ¿Listo para el reintento?</h4>";
+            echo "<p>Después de estudiar el material de refuerzo, puedes volver a intentar el examen.</p>";
             $retryurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
                 'id' => $lastquiz->quizid,
                 'courseid' => $courseid,
                 'embedded' => 1,
                 'retry' => 1
             ]);
-            echo "<a href='{$retryurl}' class='btn btn-primary'>Reintentar examen</a></div>";
+            echo "<a href='{$retryurl}' class='btn btn-primary btn-lg'>🔄 Reintentar examen</a>";
+            echo "</div>";
+        } else {
+            // Fallback: buscar cualquier examen reciente reprobado
+            $fallback_quiz = $DB->get_record_sql("
+                SELECT qr.*, q.name as quiz_name
+                FROM {learningstylesurvey_quiz_results} qr
+                JOIN {learningstylesurvey_quizzes} q ON q.id = qr.quizid
+                WHERE qr.userid = ? AND qr.courseid = ? AND qr.score < 70
+                ORDER BY qr.timecompleted DESC LIMIT 1
+            ", [$USER->id, $courseid]);
+            
+            if ($fallback_quiz) {
+                echo "<div style='margin-top:30px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 5px;'>";
+                echo "<h4 style='margin-top: 0;'>📝 Reintento disponible</h4>";
+                echo "<p>Tienes un examen reprobado que puedes volver a intentar: <strong>" . format_string($fallback_quiz->quiz_name) . "</strong></p>";
+                $retryurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+                    'id' => $fallback_quiz->quizid,
+                    'courseid' => $courseid,
+                    'embedded' => 1,
+                    'retry' => 1
+                ]);
+                echo "<a href='{$retryurl}' class='btn btn-warning btn-lg'>🔄 Reintentar examen</a>";
+                echo "</div>";
+            }
         }
         
         echo "</div>";
@@ -197,23 +257,36 @@ if ($stepid) {
     }
 }
 
-// Verificar si viene de un examen y si lo reprobó
-$lastquiz = $DB->get_record_sql("SELECT * FROM {learningstylesurvey_quiz_results} WHERE userid = ? AND courseid = ? ORDER BY timecompleted DESC LIMIT 1", [$USER->id, $courseid]);
+// Verificar si el ÚLTIMO intento de un examen de ESTA RUTA fue reprobado
+$lastquiz = $DB->get_record_sql("
+    SELECT qr.*, s.failredirect 
+    FROM {learningstylesurvey_quiz_results} qr
+    JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
+    WHERE qr.userid = ? AND qr.courseid = ? AND s.pathid = ?
+    ORDER BY qr.timecompleted DESC 
+    LIMIT 1
+", [$USER->id, $courseid, $pathid]);
+
 $show_refuerzo = false;
 $tema_refuerzo_id = null;
-if ($lastquiz && $lastquiz->score < 70) {
-    // Buscar el paso de examen y su failredirect (que apunta a tema ID)
-    $exstep = $DB->get_record_sql("
-        SELECT s.* FROM {learningpath_steps} s 
-        WHERE s.pathid = ? AND s.resourceid = ? AND s.istest = 1
-        ORDER BY s.id DESC LIMIT 1
-    ", [$pathid, $lastquiz->quizid]);
-    
-    if ($exstep && $exstep->failredirect) {
-        // failredirect apunta directamente al ID del tema
-        $tema_refuerzo_id = $exstep->failredirect;
-        $show_refuerzo = true;
+if ($lastquiz && $lastquiz->score < 70 && $lastquiz->failredirect) {
+    // Solo mostrar refuerzo si realmente reprobó Y hay un tema de refuerzo configurado
+    $tema_refuerzo_id = $lastquiz->failredirect;
+    $show_refuerzo = true;
+}
+
+// Debug temporal - mostrar información del examen
+if ($debug_info) {
+    echo "<div class='alert alert-warning'>";
+    echo "<h4>Debug - Estado del examen:</h4>";
+    if ($lastquiz) {
+        echo "<p><strong>Último resultado:</strong> Score {$lastquiz->score}, Quiz ID {$lastquiz->quizid}, Tiempo: " . date('Y-m-d H:i:s', $lastquiz->timecompleted) . "</p>";
+        echo "<p><strong>Failredirect:</strong> {$lastquiz->failredirect}</p>";
+        echo "<p><strong>Mostrar refuerzo:</strong> " . ($show_refuerzo ? 'SÍ' : 'NO') . "</p>";
+    } else {
+        echo "<p><strong>No hay resultados de examen para esta ruta</strong></p>";
     }
+    echo "</div>";
 }
 
 if ($show_refuerzo && $tema_refuerzo_id) {
@@ -232,19 +305,22 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         mostrar_recurso($resource);
         
         // Botón para reintentar el examen después del refuerzo
-        echo "<div style='margin-top:30px;'><h4>Después de estudiar el refuerzo, puedes volver a intentar el examen</h4>";
+        echo "<div style='margin-top:30px; padding: 15px; background: #e7f3ff; border-left: 4px solid #007bff; border-radius: 5px;'>";
+        echo "<h4 style='margin-top: 0;'>💡 ¿Listo para el reintento?</h4>";
+        echo "<p>Después de estudiar el material de refuerzo, puedes volver a intentar el examen.</p>";
         $retryurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
             'id' => $lastquiz->quizid,
             'courseid' => $courseid,
             'embedded' => 1,
             'retry' => 1
         ]);
-        echo "<a href='{$retryurl}' class='btn btn-primary'>Reintentar examen</a></div>";
+        echo "<a href='{$retryurl}' class='btn btn-primary btn-lg'>🔄 Reintentar examen</a>";
+        echo "</div>";
     } else {
         echo "<div class='alert alert-warning'>No hay recursos de refuerzo específicos para tu estilo de aprendizaje.</div>";
     }
 } else {
-    // Flujo normal: mostrar recurso por estilo
+    // Flujo normal: mostrar primer recurso no-examen filtrado por estilo del usuario
     $step = $DB->get_record_sql("
         SELECT s.*
         FROM {learningpath_steps} s
@@ -255,7 +331,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
     ", [$pathid, $style]);
     
     if ($step) {
-        $resource = $DB->get_record('learningstylesurvey_resources', ['id'=>$step->resourceid]);
+        $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
         if ($resource) {
             mostrar_recurso($resource);
             
@@ -272,7 +348,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
     }
 }
 
-// Buscar el primer paso de examen programado en la ruta
+// Buscar el primer examen programado en la ruta
 $quizstep = $DB->get_record_sql("
     SELECT s.*
     FROM {learningpath_steps} s

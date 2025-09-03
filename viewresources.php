@@ -35,27 +35,27 @@ if ($deleteid > 0) {
     }
 }
 
-// Obtener temas para el filtro
-$temas = $DB->get_records('learningstylesurvey_temas', ['courseid' => $courseid], 'timecreated DESC');
+// Obtener temas para el filtro - ✅ Solo los del usuario actual
+$temas = $DB->get_records('learningstylesurvey_temas', ['courseid' => $courseid, 'userid' => $USER->id], 'timecreated DESC');
 $selected_tema = optional_param('tema', '', PARAM_INT);
 
-// Consulta de recursos filtrados por tema si se selecciona
+// Consulta de recursos filtrados por tema si se selecciona - SOLO del usuario actual
 if ($selected_tema) {
     $resources = $DB->get_records_sql("
         SELECT r.*, t.tema AS nombretema
         FROM {learningstylesurvey_resources} r
         LEFT JOIN {learningstylesurvey_temas} t ON r.tema = t.id
-        WHERE r.courseid = ? AND r.tema = ?
+        WHERE r.courseid = ? AND r.tema = ? AND r.userid = ?
         ORDER BY r.id DESC
-    ", [$courseid, $selected_tema]);
+    ", [$courseid, $selected_tema, $USER->id]);
 } else {
     $resources = $DB->get_records_sql("
         SELECT r.*, t.tema AS nombretema
         FROM {learningstylesurvey_resources} r
         LEFT JOIN {learningstylesurvey_temas} t ON r.tema = t.id
-        WHERE r.courseid = ?
+        WHERE r.courseid = ? AND r.userid = ?
         ORDER BY r.id DESC
-    ", [$courseid]);
+    ", [$courseid, $USER->id]);
 }
 
 // Limpiar registros huérfanos (archivo no existe físicamente)

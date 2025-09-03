@@ -16,6 +16,12 @@ global $DB, $OUTPUT;
 
 // Eliminar examen
 if ($action === 'delete' && $quizid) {
+    // ✅ Verificar que el examen pertenece al usuario actual
+    $quiz = $DB->get_record('learningstylesurvey_quizzes', ['id' => $quizid, 'courseid' => $courseid, 'userid' => $USER->id]);
+    if (!$quiz) {
+        print_error('No tienes permisos para eliminar este examen.');
+    }
+    
     // Eliminar preguntas y opciones asociadas
     $questions = $DB->get_records('learningstylesurvey_questions', ['quizid' => $quizid]);
     foreach ($questions as $q) {
@@ -29,7 +35,7 @@ if ($action === 'delete' && $quizid) {
 
 // Editar examen
 if ($action === 'edit' && $quizid) {
-    $quiz = $DB->get_record('learningstylesurvey_quizzes', ['id' => $quizid, 'courseid' => $courseid], '*', MUST_EXIST);
+    $quiz = $DB->get_record('learningstylesurvey_quizzes', ['id' => $quizid, 'courseid' => $courseid, 'userid' => $USER->id], '*', MUST_EXIST);
     $questions = $DB->get_records('learningstylesurvey_questions', ['quizid' => $quizid]);
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['savequiz'])) {
@@ -110,85 +116,472 @@ if ($action === 'edit' && $quizid) {
     } else {
         echo '<a href="' . new moodle_url('/course/view.php', ['id' => $courseid]) . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al curso</a>';
     }
-    echo '<form method="post" id="editquizform">';
-    echo '<label>Nombre del examen:</label><br>';
-    echo '<input type="text" name="name" value="' . s($quiz->name) . '" required><br><br>';
-    echo '<div id="questions">';
-    foreach ($questions as $q) {
-        echo '<div class="question-block" style="margin-bottom:20px; padding:10px; border:1px solid #ccc; border-radius:8px;">';
-        echo '<label>Pregunta:</label><br>';
-    echo '<input type="text" name="question_' . $q->id . '" value="' . s($q->questiontext) . '" required><br>';
-        echo '<label>Opciones:</label><br>';
-        $options = $DB->get_records('learningstylesurvey_options', ['questionid' => $q->id]);
-        $optionIndex = 0;
-        foreach ($options as $opt) {
-            echo '<input type="text" name="option_' . $q->id . '_' . $optionIndex . '" value="' . s($opt->optiontext) . '" required> ';
-            echo '<input type="radio" name="correct_' . $q->id . '" value="' . $optionIndex . '"' . ($q->correctanswer == $optionIndex ? ' checked' : '') . '> Correcta<br>';
-            $optionIndex++;
-        }
-        echo '<button type="button" class="btn btn-danger" onclick="eliminarPregunta(this)">Eliminar pregunta</button>';
-        echo '</div>';
-    }
-    echo '</div>';
-    echo '<button type="button" class="btn btn-info" onclick="agregarPregunta()">Agregar nueva pregunta</button>';
-    echo '<br><br><button type="submit" name="savequiz">Guardar cambios</button>';
-    echo '</form>';
-
     ?>
+    <style>
+        .quiz-form-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+        }
+        .form-group {
+            margin-bottom: 25px;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            display: block;
+            font-size: 16px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s ease;
+        }
+        .form-input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+        .question-card {
+            background: #f8f9fa;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 25px;
+            transition: all 0.3s ease;
+        }
+        .question-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-color: #007bff;
+        }
+        .option-container {
+            display: flex;
+            align-items: center;
+            padding: 12px 15px;
+            margin: 8px 0;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+        .option-container.correct {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border-color: #28a745;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+        }
+        .option-container:not(.correct) {
+            background: #ffffff;
+            border-color: #e1e5e9;
+        }
+        .option-container:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .option-input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-right: 15px;
+            font-size: 15px;
+        }
+        .correct-radio {
+            margin-right: 10px;
+            transform: scale(1.4);
+            accent-color: #28a745;
+        }
+        .correct-label {
+            font-weight: 600;
+            color: #28a745;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .correct-label .checkmark {
+            font-size: 18px;
+            color: #28a745;
+        }
+        .btn-modern {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-danger-modern {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            color: white;
+        }
+        .btn-danger-modern:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        }
+        .btn-success-modern {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+        }
+        .btn-success-modern:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+        }
+        .btn-info-modern {
+            background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%);
+            color: white;
+        }
+        .btn-info-modern:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(23, 162, 184, 0.3);
+        }
+        .question-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .question-icon {
+            background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-weight: bold;
+        }
+    </style>
+    
+    <div class="quiz-form-container">
+        <form method="post" id="editquizform">
+            <div class="form-group">
+                <label class="form-label">📝 Nombre del examen:</label>
+                <input type="text" name="name" value="<?php echo s($quiz->name); ?>" required class="form-input">
+            </div>
+            
+            <div id="questions">
+                <?php
+                $questionNumber = 1;
+                foreach ($questions as $q) {
+                    echo '<div class="question-card">';
+                    echo '<div class="question-header">';
+                    echo '<div class="question-icon">' . $questionNumber . '</div>';
+                    echo '<div style="flex: 1;">';
+                    echo '<label class="form-label">Pregunta:</label>';
+                    echo '<input type="text" name="question_' . $q->id . '" value="' . s($q->questiontext) . '" required class="form-input">';
+                    echo '</div>';
+                    echo '</div>';
+                    
+                    echo '<label class="form-label">📋 Opciones (Selecciona la respuesta correcta):</label>';
+                    
+                    $options = $DB->get_records('learningstylesurvey_options', ['questionid' => $q->id]);
+                    $optionIndex = 0;
+                    foreach ($options as $opt) {
+                        // ✅ Verificación robusta para correctanswer (maneja tanto índice numérico como texto)
+                        $isCorrect = false;
+                        if (is_numeric($q->correctanswer)) {
+                            // Nuevo formato: índice numérico
+                            $isCorrect = ((int)$q->correctanswer == $optionIndex);
+                        } else {
+                            // Formato antiguo: texto de la opción
+                            $isCorrect = (trim($q->correctanswer) == trim($opt->optiontext));
+                        }
+                        $correctClass = $isCorrect ? 'correct' : '';
+                        
+                        echo '<div class="option-container ' . $correctClass . '">';
+                        echo '<input type="text" name="option_' . $q->id . '_' . $optionIndex . '" value="' . s($opt->optiontext) . '" required class="option-input">';
+                        echo '<input type="radio" name="correct_' . $q->id . '" value="' . $optionIndex . '"' . ($isCorrect ? ' checked' : '') . ' class="correct-radio">';
+                        echo '<label class="correct-label">';
+                        if ($isCorrect) {
+                            echo '✅ Correcta';
+                        } else {
+                            echo 'Correcta';
+                        }
+                        echo '</label>';
+                        echo '</div>';
+                        $optionIndex++;
+                    }
+                    
+                    echo '<div style="margin-top: 15px;">';
+                    echo '<button type="button" class="btn-modern btn-danger-modern" onclick="eliminarPregunta(this)">';
+                    echo '🗑️ Eliminar pregunta';
+                    echo '</button>';
+                    echo '</div>';
+                    echo '</div>';
+                    $questionNumber++;
+                }
+                ?>
+            </div>
+            
+            <div style="margin: 25px 0;">
+                <button type="button" class="btn-modern btn-info-modern" onclick="agregarPregunta()">
+                    ➕ Agregar nueva pregunta
+                </button>
+            </div>
+            
+            <div style="margin-top: 30px; text-align: center;">
+                <button type="submit" name="savequiz" class="btn-modern btn-success-modern" style="font-size: 16px; padding: 15px 30px;">
+                    💾 Guardar cambios
+                </button>
+            </div>
+        </form>
+    </div>
+
     <script>
+    let questionCounter = <?php echo count($questions); ?>;
+    
     function agregarPregunta() {
+        questionCounter++;
         var container = document.getElementById("questions");
-        var num = document.querySelectorAll(".question-block").length;
         var div = document.createElement("div");
-        div.className = "question-block";
-        div.style = "margin-bottom:20px; padding:10px; border:1px solid #ccc; border-radius:8px;";
+        div.className = "question-card";
         div.innerHTML = `
-            <label>Pregunta:</label><br>
-            <input type="text" name="new_question_${num}" required><br>
-            <label>Opciones:</label><br>
-            <input type="text" name="new_option_${num}_0" required> <input type="radio" name="new_correct_${num}" value="0" checked> Correcta<br>
-            <input type="text" name="new_option_${num}_1" required> <input type="radio" name="new_correct_${num}" value="1"> Correcta<br>
-            <input type="text" name="new_option_${num}_2"> <input type="radio" name="new_correct_${num}" value="2"> Correcta<br>
-            <input type="text" name="new_option_${num}_3"> <input type="radio" name="new_correct_${num}" value="3"> Correcta<br>
-            <button type="button" class="btn btn-danger" onclick="eliminarPregunta(this)">Eliminar pregunta</button>
+            <div class="question-header">
+                <div class="question-icon">${questionCounter}</div>
+                <div style="flex: 1;">
+                    <label class="form-label">Pregunta:</label>
+                    <input type="text" name="new_question_${questionCounter}" required class="form-input">
+                </div>
+            </div>
+            <label class="form-label">📋 Opciones (Selecciona la respuesta correcta):</label>
+            <div class="option-container">
+                <input type="text" name="new_option_${questionCounter}_0" required class="option-input">
+                <input type="radio" name="new_correct_${questionCounter}" value="0" checked class="correct-radio">
+                <label class="correct-label">✅ Correcta</label>
+            </div>
+            <div class="option-container">
+                <input type="text" name="new_option_${questionCounter}_1" required class="option-input">
+                <input type="radio" name="new_correct_${questionCounter}" value="1" class="correct-radio">
+                <label class="correct-label">Correcta</label>
+            </div>
+            <div class="option-container">
+                <input type="text" name="new_option_${questionCounter}_2" class="option-input">
+                <input type="radio" name="new_correct_${questionCounter}" value="2" class="correct-radio">
+                <label class="correct-label">Correcta</label>
+            </div>
+            <div class="option-container">
+                <input type="text" name="new_option_${questionCounter}_3" class="option-input">
+                <input type="radio" name="new_correct_${questionCounter}" value="3" class="correct-radio">
+                <label class="correct-label">Correcta</label>
+            </div>
+            <div style="margin-top: 15px;">
+                <button type="button" class="btn-modern btn-danger-modern" onclick="eliminarPregunta(this)">
+                    🗑️ Eliminar pregunta
+                </button>
+            </div>
         `;
         container.appendChild(div);
+        
+        // Agregar eventos a los nuevos radio buttons
+        const radioButtons = div.querySelectorAll('input[type="radio"]');
+        radioButtons.forEach(radio => {
+            radio.addEventListener('change', updateCorrectAnswerDisplay);
+        });
     }
+    
     function eliminarPregunta(btn) {
-        btn.parentElement.remove();
+        btn.closest('.question-card').remove();
+        updateQuestionNumbers();
     }
+    
+    function updateQuestionNumbers() {
+        const questions = document.querySelectorAll('.question-card');
+        questions.forEach((question, index) => {
+            const icon = question.querySelector('.question-icon');
+            if (icon) {
+                icon.textContent = index + 1;
+            }
+        });
+        questionCounter = questions.length;
+    }
+    
+    function updateCorrectAnswerDisplay() {
+        // Actualizar la visualización cuando se cambie la respuesta correcta
+        const container = this.closest('.question-card');
+        const options = container.querySelectorAll('.option-container');
+        const radios = container.querySelectorAll('input[type="radio"]');
+        
+        options.forEach((option, index) => {
+            const radio = radios[index];
+            const label = option.querySelector('.correct-label');
+            
+            if (radio.checked) {
+                option.classList.add('correct');
+                label.textContent = '✅ Correcta';
+            } else {
+                option.classList.remove('correct');
+                label.textContent = 'Correcta';
+            }
+        });
+    }
+    
+    // Agregar eventos a todos los radio buttons existentes
+    document.addEventListener('DOMContentLoaded', function() {
+        const allRadios = document.querySelectorAll('input[type="radio"]');
+        allRadios.forEach(radio => {
+            radio.addEventListener('change', updateCorrectAnswerDisplay);
+        });
+    });
     </script>
     <?php
     echo $OUTPUT->footer();
     exit;
 }
 
-// Listar exámenes
-$quizzes = $DB->get_records('learningstylesurvey_quizzes', ['courseid' => $courseid]);
+// Listar exámenes - ✅ Filtrar por usuario y curso
+$quizzes = $DB->get_records('learningstylesurvey_quizzes', ['courseid' => $courseid, 'userid' => $USER->id]);
 echo $OUTPUT->header();
-echo $OUTPUT->heading('Exámenes del curso');
 
-// Obtener el cmid del módulo learningstylesurvey
-$cmid = 0;
-$instances = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
-if ($instances) {
-    $firstcm = reset($instances);
-    $cmid = $firstcm->id;
-}
+?>
+<style>
+    .quiz-list-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    .quiz-card {
+        background: #fff;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        padding: 25px;
+        margin-bottom: 20px;
+        transition: all 0.3s ease;
+        border-left: 5px solid #007bff;
+    }
+    .quiz-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 15px rgba(0, 0, 0, 0.15);
+    }
+    .quiz-title {
+        font-size: 20px;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .quiz-title .icon {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: white;
+        width: 35px;
+        height: 35px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+    }
+    .quiz-actions {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+    }
+    .btn-action {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 14px;
+    }
+    .btn-edit {
+        background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+        color: white;
+    }
+    .btn-edit:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+    .btn-delete {
+        background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        color: white;
+    }
+    .btn-delete:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+        color: white;
+        text-decoration: none;
+    }
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        background: #f8f9fa;
+        border-radius: 12px;
+        border: 2px dashed #dee2e6;
+    }
+    .empty-state .icon {
+        font-size: 64px;
+        color: #6c757d;
+        margin-bottom: 20px;
+    }
+    .empty-state h3 {
+        color: #6c757d;
+        margin-bottom: 10px;
+    }
+    .empty-state p {
+        color: #868e96;
+    }
+</style>
 
-if ($cmid) {
-    $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
-    echo '<a href="' . $viewurl->out() . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al menú</a>';
-} else {
-    echo '<a href="' . new moodle_url('/course/view.php', ['id' => $courseid]) . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al curso</a>';
-}
-echo '<ul style="list-style:none; padding:0;">';
-foreach ($quizzes as $quiz) {
-    echo '<li style="margin-bottom:20px; padding:10px; border:1px solid #ddd; border-radius:8px; background:#f9f9f9;">';
-    echo '<strong>' . format_string($quiz->name) . '</strong><br>';
-    echo '<a href="?quizid=' . $quiz->id . '&courseid=' . $courseid . '&action=edit" class="btn btn-primary">Editar</a> ';
-    echo '<a href="?quizid=' . $quiz->id . '&courseid=' . $courseid . '&action=delete" class="btn btn-danger" onclick="return confirm(\'¿Seguro que deseas eliminar este examen?\')">Eliminar</a>';
-    echo '</li>';
-}
-echo '</ul>';
+<div class="quiz-list-container">
+    <?php
+    echo $OUTPUT->heading('📋 Exámenes del curso', 2, 'main');
+
+    // Obtener el cmid del módulo learningstylesurvey
+    $cmid = 0;
+    $instances = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
+    if ($instances) {
+        $firstcm = reset($instances);
+        $cmid = $firstcm->id;
+    }
+
+    if ($cmid) {
+        $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
+        echo '<a href="' . $viewurl->out() . '" class="btn btn-dark" style="margin-bottom:25px; display: inline-flex; align-items: center; gap: 8px;">⬅️ Regresar al menú</a>';
+    } else {
+        echo '<a href="' . new moodle_url('/course/view.php', ['id' => $courseid]) . '" class="btn btn-dark" style="margin-bottom:25px; display: inline-flex; align-items: center; gap: 8px;">⬅️ Regresar al curso</a>';
+    }
+
+    if (empty($quizzes)) {
+        echo '<div class="empty-state">';
+        echo '<div class="icon">📝</div>';
+        echo '<h3>No hay exámenes creados</h3>';
+        echo '<p>Aún no se han creado exámenes para este curso. Crea tu primer examen para comenzar.</p>';
+        echo '</div>';
+    } else {
+        foreach ($quizzes as $quiz) {
+            echo '<div class="quiz-card">';
+            echo '<div class="quiz-title">';
+            echo '<div class="icon">📝</div>';
+            echo '<span>' . format_string($quiz->name) . '</span>';
+            echo '</div>';
+            echo '<div class="quiz-actions">';
+            echo '<a href="?quizid=' . $quiz->id . '&courseid=' . $courseid . '&action=edit" class="btn-action btn-edit">✏️ Editar</a>';
+            echo '<a href="?quizid=' . $quiz->id . '&courseid=' . $courseid . '&action=delete" class="btn-action btn-delete" onclick="return confirm(\'¿Seguro que deseas eliminar este examen?\')">🗑️ Eliminar</a>';
+            echo '</div>';
+            echo '</div>';
+        }
+    }
+    ?>
+</div>
+
+<?php
 echo $OUTPUT->footer();

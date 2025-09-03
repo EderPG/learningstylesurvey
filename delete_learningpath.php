@@ -15,16 +15,23 @@ global $DB;
 // Si se envió confirmación de eliminación
 if (optional_param('confirm', 0, PARAM_BOOL)) {
     $idruta = required_param('delete', PARAM_INT);
+    
+    // ✅ Verificar que la ruta pertenece al usuario actual
+    $ruta = $DB->get_record('learningstylesurvey_paths', ['id' => $idruta, 'userid' => $USER->id]);
+    if (!$ruta) {
+        print_error('No tienes permisos para eliminar esta ruta.');
+    }
+    
     $DB->delete_records('learningstylesurvey_path_files', ['pathid' => $idruta]);
     $DB->delete_records('learningstylesurvey_path_evaluations', ['pathid' => $idruta]);
     $DB->delete_records('learningstylesurvey_paths', ['id' => $idruta]);
 
-    redirect(new moodle_url('/mod/learningstylesurvey/delete_learningpath.php', ['courseid' => $courseid]), "Ruta eliminada.", 1);
+    redirect(new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid]), "Ruta eliminada correctamente. Ahora puedes crear una nueva ruta.", 3);
     exit;
 }
 
-// Mostrar rutas disponibles
-$records = $DB->get_records('learningstylesurvey_paths', array('courseid' => $courseid));
+// Mostrar rutas disponibles - ✅ Solo las del usuario actual
+$records = $DB->get_records('learningstylesurvey_paths', ['courseid' => $courseid, 'userid' => $USER->id]);
 
 if (!$records) {
     echo "<p>No hay rutas registradas.</p>";

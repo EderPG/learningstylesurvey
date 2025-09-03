@@ -17,8 +17,8 @@ $cmid = $firstcm->id;
 $errors = [];
 $success = false;
 
-// Cargar temas para el select
-$temas = $DB->get_records('learningstylesurvey_temas', ['courseid' => $courseid], 'timecreated DESC');
+// Cargar temas para el select - ✅ Solo los del usuario actual
+$temas = $DB->get_records('learningstylesurvey_temas', ['courseid' => $courseid, 'userid' => $USER->id], 'timecreated DESC');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = required_param('name', PARAM_TEXT);
@@ -34,11 +34,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $filename = $style . '_' . $originalname;
     $fullpath = $upload_dir . $filename;
 
-        // Verificar si ya existe en la BD para este curso y estilo
+        // Verificar si ya existe en la BD para este curso, estilo Y usuario
         $existing = $DB->get_record('learningstylesurvey_resources', [
             'filename' => $filename,
             'courseid' => $courseid,
-            'style' => $style
+            'style' => $style,
+            'userid' => $USER->id
         ]);
 
         if ($existing) {
@@ -49,6 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (move_uploaded_file($file['tmp_name'], $fullpath)) {
                 $record = new stdClass();
                 $record->courseid = $courseid;
+                $record->userid = $USER->id; // Agregar ID del usuario que sube el archivo
                 $record->name = $name;
                 $record->style = $style;
                 $record->tema = $tema;

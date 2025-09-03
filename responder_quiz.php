@@ -24,16 +24,6 @@ if ($embedded) {
     echo "<div style='margin-bottom:15px;'><a href='" . $returnurl->out() . "' class='btn btn-secondary'>Regresar a la ruta</a></div>";
 }
 
-// Si es un reintento, limpiar el resultado anterior
-if ($retry) {
-    $DB->delete_records('learningstylesurvey_quiz_results', [
-        'userid' => $userid,
-        'quizid' => $quizid,
-        'courseid' => $courseid
-    ]);
-    echo "<div class='alert alert-info'>Resultado anterior eliminado. Puedes volver a realizar el examen.</div>";
-}
-
 // Función para procesar envío
 function process_quiz_submission($quizid, $courseid, $userid, $embedded = false) {
     global $DB;
@@ -44,12 +34,13 @@ function process_quiz_submission($quizid, $courseid, $userid, $embedded = false)
 
     foreach ($questions as $q) {
         $userOptionId = optional_param("question{$q->id}", null, PARAM_INT);
-        $options = $DB->get_records('learningstylesurvey_options', ['questionid' => $q->id]);
+        // ✅ Ordenar opciones por ID para mantener consistencia con el índice guardado
+        $options = $DB->get_records('learningstylesurvey_options', ['questionid' => $q->id], 'id ASC');
         $selectedText = null;
-        if ($userOptionId !== null && isset($options[$userOptionId])) {
-            $selectedText = $options[$userOptionId]->optiontext;
-        } else {
-            // Buscar por id
+        $selectedIndex = null;
+        
+        // Buscar la opción seleccionada por ID
+        if ($userOptionId !== null) {
             foreach ($options as $opt) {
                 if ($opt->id == $userOptionId) {
                     $selectedText = $opt->optiontext;
@@ -57,12 +48,44 @@ function process_quiz_submission($quizid, $courseid, $userid, $embedded = false)
                 }
             }
         }
-        if ($selectedText !== null && trim($selectedText) === trim($q->correctanswer)) {
+        
+        // ✅ Encontrar el índice correcto (0, 1, 2...) basado en el orden de las opciones
+        if ($userOptionId !== null) {
+            $optionIndex = 0; // ✅ Empezar desde 0, no desde 1
+            foreach ($options as $opt) {
+                if ($opt->id == $userOptionId) {
+                    $selectedIndex = $optionIndex;
+                    break;
+                }
+                $optionIndex++;
+            }
+        }
+        
+        // Debug temporal - registrar comparaciones
+        error_log("Question {$q->id}: UserOptionId=$userOptionId, Selected='$selectedText' (index $selectedIndex), Correct='{$q->correctanswer}'");
+        error_log("Question {$q->id}: Available options: " . json_encode(array_map(function($opt) { return ['id' => $opt->id, 'text' => $opt->optiontext]; }, $options)));
+        
+        // ✅ Verificación robusta para correctanswer (maneja tanto índice numérico como texto)
+        $isCorrect = false;
+        if (is_numeric($q->correctanswer)) {
+            // Nuevo formato: índice numérico (0, 1, 2, 3...)
+            $isCorrect = ($selectedIndex !== null && (int)$q->correctanswer == $selectedIndex);
+            error_log("Question {$q->id}: Comparing index - Selected: $selectedIndex vs Correct: {$q->correctanswer} = " . ($isCorrect ? 'CORRECT' : 'INCORRECT'));
+        } else {
+            // Formato antiguo: texto de la opción
+            $isCorrect = ($selectedText !== null && trim(strtolower($selectedText)) === trim(strtolower($q->correctanswer)));
+            error_log("Question {$q->id}: Comparing text - Selected: '$selectedText' vs Correct: '{$q->correctanswer}' = " . ($isCorrect ? 'CORRECT' : 'INCORRECT'));
+        }
+        
+        if ($isCorrect) {
             $correct++;
         }
     }
 
     $score = ($total > 0) ? round(($correct / $total) * 100) : 0;
+    
+    // Debug temporal - mostrar cálculos
+    error_log("Quiz calculation: $correct correct out of $total questions = $score%");
 
     // Buscar si ya existe resultado
     $existing = $DB->get_record('learningstylesurvey_quiz_results', [
@@ -79,32 +102,82 @@ function process_quiz_submission($quizid, $courseid, $userid, $embedded = false)
     $record->timemodified = time();
     $record->timecompleted = time();
 
-    if ($existing) {
-        $record->id = $existing->id;
-        $DB->update_record('learningstylesurvey_quiz_results', $record);
-    } else {
-        $DB->insert_record('learningstylesurvey_quiz_results', $record);
-    }
+    // CAMBIO IMPORTANTE: Siempre crear un nuevo registro para cada intento
+    // Esto permite un seguimiento preciso del progreso del estudiante
+    $DB->insert_record('learningstylesurvey_quiz_results', $record);
+    error_log("Quiz attempt: Inserted new result for user $userid, quiz $quizid, score: $score, time: " . date('Y-m-d H:i:s'));
 
     return $score;
 }
 
-// Verificar si ya respondió (solo si no es un reintento)
-$result = null;
-if (!$retry) {
-    $result = $DB->get_record('learningstylesurvey_quiz_results', [
+// Verificar si ya respondió
+$result = $DB->get_record('learningstylesurvey_quiz_results', [
+    'userid' => $userid,
+    'quizid' => $quizid,
+    'courseid' => $courseid
+]);
+
+// Si es un reintento y existe un resultado previo, eliminarlo
+if ($retry && $result) {
+    $deleted = $DB->delete_records('learningstylesurvey_quiz_results', [
         'userid' => $userid,
         'quizid' => $quizid,
         'courseid' => $courseid
     ]);
+    echo "<div class='alert alert-success'>✅ Resultado anterior eliminado. Puedes realizar el examen nuevamente.</div>";
+    $result = null; // Limpiar la variable para permitir mostrar el formulario
+}
+
+// Lógica mejorada: permitir reintentos automáticos si el resultado previo es reprobatorio
+$can_retry = false;
+$auto_retry = false;
+
+if ($result && $result->score < 70) {
+    // Resultado reprobatorio - permitir reintento automático
+    echo "<div class='alert alert-warning'>⚠️ Resultado anterior reprobatorio ({$result->score}%). Puedes volver a intentarlo las veces que necesites.</div>";
+    echo "<div class='alert alert-info'>💡 <strong>Tip:</strong> Si repruebas, podrás acceder a material de refuerzo y volver a intentarlo.</div>";
+    $auto_retry = true;
+    $can_retry = true;
+}
+
+// Debug: Mostrar información sobre el estado
+if ($result && !$retry && !$auto_retry) {
+    echo "<div class='alert alert-success' style='font-size: 14px;'>
+        ✅ Examen ya completado - Score: {$result->score}% - " . date('Y-m-d H:i:s', $result->timecompleted) . "
+    </div>";
+} else if ($retry) {
+    echo "<div class='alert alert-success'>🔄 Reintento solicitado</div>";
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $score = process_quiz_submission($quizid, $courseid, $userid, $embedded);
+    
+    // Obtener el mejor score guardado (puede ser diferente al actual si hubo intentos previos)
+    $best_result = $DB->get_record('learningstylesurvey_quiz_results', [
+        'userid' => $userid,
+        'quizid' => $quizid,
+        'courseid' => $courseid
+    ]);
+    $best_score = $best_result ? $best_result->score : $score;
+    
     echo "<div style='text-align:center; margin-top:20px;'>";
-    echo "<h3>Resultado: {$score}%</h3>";
-    if ($score >= 70) {
+    echo "<h3>Resultado actual: {$score}%</h3>";
+    
+    if ($best_score != $score) {
+        echo "<p style='color:#007bff; font-weight:bold;'>Mejor resultado: {$best_score}%</p>";
+    }
+    
+    if ($best_score >= 70) {
         echo "<p style='color:green; font-weight:bold;'>¡Aprobado!</p>";
+        if ($score < 70) {
+            echo "<div class='alert alert-success'>✅ Aunque este intento fue {$score}%, tu mejor resultado ({$best_score}%) ya aprueba el examen.</div>";
+        }
+    } else {
+        echo "<p style='color:red; font-weight:bold;'>Reprobado</p>";
+        echo "<div class='alert alert-info'>💡 Puedes volver a intentarlo las veces que necesites. Solo se guardará tu mejor resultado.</div>";
+    }
+    
+    if ($best_score >= 70) {
         // Buscar el paso de examen correcto para obtener saltos programados
         $step = $DB->get_record_sql("
             SELECT s.* FROM {learningpath_steps} s 
@@ -148,13 +221,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     } else {
-        echo "<p style='color:red; font-weight:bold;'>Reprobado</p>";
-        // Buscar salto a refuerzo por tema
+        // Reprobado - mostrar opciones de recuperación
         $step = $DB->get_record_sql("
             SELECT s.* FROM {learningpath_steps} s 
             WHERE s.resourceid = ? AND s.istest = 1
             ORDER BY s.id DESC LIMIT 1
         ", [$quizid]);
+        
+        echo "<div style='margin-top:20px; padding:15px; background:#f8d7da; border-radius:5px;'>";
+        echo "<h4>💪 Opciones para mejorar:</h4>";
+        
+        // Botón de reintento inmediato
+        $retryurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+            'id' => $quizid,
+            'courseid' => $courseid,
+            'embedded' => $embedded ? 1 : 0,
+            'retry' => 1
+        ]);
+        echo "<a href='{$retryurl}' class='btn btn-primary'>🔄 Reintentar ahora</a> ";
         
         if ($step && $step->failredirect) {
             // El salto apunta a un tema ID de refuerzo
@@ -163,15 +247,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'pathid' => $step->pathid,
                 'tema_refuerzo' => $step->failredirect
             ]);
-            echo "<div style='margin-top:20px;'>";
-            echo "<a class='btn btn-warning' href='" . $refuerzourl->out() . "'>Ir al tema de refuerzo</a>";
-            echo "</div>";
-        } else {
-            // Si no hay salto de refuerzo configurado, mostrar mensaje
-            echo "<div style='margin-top:20px;'>";
-            echo "<p>No hay tema de refuerzo configurado. Debes estudiar más antes de volver a intentar.</p>";
-            echo "</div>";
+            echo "<a class='btn btn-warning' href='" . $refuerzourl->out() . "'>📚 Estudiar material de refuerzo</a> ";
         }
+        
+        echo "</div>";
+        
     }
     
     // Agregar botón volver en todos los casos
@@ -181,33 +261,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     echo "</div>";
     
     echo "</div>";
-} else if ($result) {
+} else if ($result && !$auto_retry) {
+    // Mostrar resultado previo solo si está aprobado o no se permite auto-retry
     echo "<div style='text-align:center; margin-top:20px;'>";
     echo "<h3>Resultado previo: {$result->score}%</h3>";
     echo $result->score >= 70
         ? "<p style='color:green; font-weight:bold;'>¡Aprobado!</p>"
         : "<p style='color:red; font-weight:bold;'>Reprobado</p>";
-    if ($result->score < 70 && $quiz = $DB->get_record('learningstylesurvey_quizzes',['id'=>$quizid]) && $quiz->recoveryquizid) {
-        $url = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
-            'id' => $quiz->recoveryquizid,
+    
+    // Si está reprobado, mostrar opciones para mejorar
+    if ($result->score < 70) {
+        echo "<div style='margin-top:20px; padding:15px; background:#fff3cd; border-radius:5px;'>";
+        echo "<h4>💡 Opciones para mejorar:</h4>";
+        
+        $retryurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+            'id' => $quizid,
             'courseid' => $courseid,
-            'embedded' => $embedded ? 1 : 0
+            'embedded' => $embedded ? 1 : 0,
+            'retry' => 1
         ]);
-        echo "<div style='margin-top:20px;'>
-                <a class='btn btn-primary' href='{$url}'>Realizar Examen de Recuperación</a>
-              </div>";
+        echo "<a href='{$retryurl}' class='btn btn-primary'>🔄 Reintentar examen</a> ";
+        
+        // Buscar si hay tema de refuerzo configurado
+        $step = $DB->get_record_sql("
+            SELECT s.* FROM {learningpath_steps} s 
+            WHERE s.resourceid = ? AND s.istest = 1
+            ORDER BY s.id DESC LIMIT 1
+        ", [$quizid]);
+        
+        if ($step && $step->failredirect) {
+            $refuerzourl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                'courseid' => $courseid,
+                'pathid' => $step->pathid,
+                'tema_refuerzo' => $step->failredirect
+            ]);
+            echo "<a href='{$refuerzourl}' class='btn btn-warning'>📚 Ver material de refuerzo</a>";
+        }
+        
+        if ($quiz = $DB->get_record('learningstylesurvey_quizzes',['id'=>$quizid]) && $quiz->recoveryquizid) {
+            $url = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+                'id' => $quiz->recoveryquizid,
+                'courseid' => $courseid,
+                'embedded' => $embedded ? 1 : 0
+            ]);
+            echo "<a class='btn btn-info' href='{$url}'>📝 Examen de Recuperación</a>";
+        }
+        echo "</div>";
     }
+    
     if (!$embedded) {
         $volver_url = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid' => $courseid]);
-        echo "<a href='" . $volver_url->out() . "'>Volver</a>";
+        echo "<div style='margin-top:15px;'><a href='" . $volver_url->out() . "' class='btn btn-secondary'>Volver</a></div>";
     }
     echo "</div>";
 } else {
-    // Mostrar formulario
+    // Mostrar formulario: cuando no hay resultado, viene con retry, o auto_retry está activo
     $questions = $DB->get_records('learningstylesurvey_questions', ['quizid' => $quizid]);
+    
+    if ($auto_retry) {
+        echo "<div class='alert alert-info'>";
+        echo "<h4>🔄 Nuevo intento</h4>";
+        echo "<p>Puedes volver a realizar este examen. No hay límite de intentos.</p>";
+        echo "</div>";
+    }
+    
     echo '<form method="post">';
     foreach ($questions as $index => $q) {
-        $options = $DB->get_records('learningstylesurvey_options', ['questionid' => $q->id]);
+        // ✅ Ordenar opciones por ID para mantener consistencia
+        $options = $DB->get_records('learningstylesurvey_options', ['questionid' => $q->id], 'id ASC');
         echo "<fieldset style='margin-bottom:20px;'><legend><b>" . ($index + 1) . ". {$q->questiontext}</b></legend>";
         foreach ($options as $opt) {
             echo "<label style='display:block; margin-bottom:6px;'>

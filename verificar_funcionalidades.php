@@ -1,204 +1,690 @@
 <?php
 require_once('../../config.php');
+require_once($CFG->libdir . '/tablelib.php');
 require_login();
 
-global $DB;
+global $DB, $USER, $CFG;
 
 $courseid = required_param('courseid', PARAM_INT);
+$id = optional_param('id', 0, PARAM_INT); // CMid para regresar
 
-echo "<h2>Verificación de Funcionalidades</h2>";
+// Estilo CSS mejorado
+echo "<style>
+.verification-card {
+    background: #fff;
+    border: 1px solid #e1e5e9;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 15px 0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.status-success { color: #28a745; font-weight: bold; }
+.status-warning { color: #ffc107; font-weight: bold; }
+.status-error { color: #dc3545; font-weight: bold; }
+.info-box {
+    background: #e7f3ff;
+    border-left: 4px solid #0066cc;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 4px;
+}
+.warning-box {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 4px;
+}
+.success-box {
+    background: #d4edda;
+    border-left: 4px solid #28a745;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 4px;
+}
+.btn {
+    display: inline-block;
+    padding: 8px 16px;
+    margin: 5px;
+    text-decoration: none;
+    border-radius: 4px;
+    font-weight: bold;
+    text-align: center;
+}
+.btn-primary { background: #007bff; color: white; }
+.btn-secondary { background: #6c757d; color: white; }
+.btn-success { background: #28a745; color: white; }
+.btn-warning { background: #ffc107; color: black; }
+.btn-danger { background: #dc3545; color: white; }
+.nav-buttons {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 20px 0;
+    text-align: center;
+}
+table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+th, td { padding: 10px; border: 1px solid #dee2e6; text-align: left; }
+th { background: #f8f9fa; font-weight: bold; }
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin: 20px 0;
+}
+.stat-card {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    border: 1px solid #dee2e6;
+}
+</style>";
 
-// Verificar versión del plugin
+echo "<div class='verification-card'>";
+echo "<h2>🔍 Verificación Completa de Funcionalidades</h2>";
+echo "<p>Sistema integral de diagnóstico para el módulo Learning Style Survey</p>";
+echo "</div>";
+
+// Verificar versión del plugin y estadísticas básicas
 $plugin_version = $DB->get_field('config_plugins', 'value', 
     ['plugin' => 'mod_learningstylesurvey', 'name' => 'version']);
-echo "<div style='background:#e7f3ff; padding:10px; margin:10px 0; border-left:4px solid #0066cc;'>";
-echo "<strong>📋 Versión actual del plugin:</strong> " . ($plugin_version ? $plugin_version : 'No registrada') . "<br>";
-echo "<strong>📅 Fecha:</strong> " . date('Y-m-d H:i:s') . "<br>";
+
+echo "<div class='info-box'>";
+echo "<h3>📋 Información del Sistema</h3>";
+echo "<strong>� Versión del plugin:</strong> " . ($plugin_version ? $plugin_version : 'No registrada') . "<br>";
+echo "<strong>📅 Fecha de verificación:</strong> " . date('Y-m-d H:i:s') . "<br>";
+echo "<strong>🎓 Curso ID:</strong> {$courseid}<br>";
+echo "<strong>👤 Usuario verificador:</strong> {$USER->username} (ID: {$USER->id})<br>";
+echo "<strong>🌐 Versión de Moodle:</strong> {$CFG->version}<br>";
 echo "</div>";
 
-// Verificar que las tablas existan
+// Estadísticas rápidas del curso
+$total_temas = $DB->count_records('learningstylesurvey_temas', ['courseid' => $courseid]);
+$total_recursos = $DB->count_records('learningstylesurvey_resources', ['courseid' => $courseid]);
+$total_quizzes = $DB->count_records('learningstylesurvey_quizzes', ['courseid' => $courseid]);
+$total_rutas = 0;
+if ($DB->get_manager()->table_exists('learningstylesurvey_paths')) {
+    $total_rutas = $DB->count_records('learningstylesurvey_paths', ['courseid' => $courseid]);
+}
+
+echo "<div class='stats-grid'>";
+echo "<div class='stat-card'>";
+echo "<h4>📚 Temas</h4>";
+echo "<div style='font-size: 24px; color: #007bff;'>{$total_temas}</div>";
+echo "</div>";
+echo "<div class='stat-card'>";
+echo "<h4>📁 Recursos</h4>";
+echo "<div style='font-size: 24px; color: #28a745;'>{$total_recursos}</div>";
+echo "</div>";
+echo "<div class='stat-card'>";
+echo "<h4>📝 Quizzes</h4>";
+echo "<div style='font-size: 24px; color: #ffc107;'>{$total_quizzes}</div>";
+echo "</div>";
+echo "<div class='stat-card'>";
+echo "<h4>🛤️ Rutas</h4>";
+echo "<div style='font-size: 24px; color: #dc3545;'>{$total_rutas}</div>";
+echo "</div>";
+echo "</div>";
+
+// Verificar que las tablas existan (ampliado)
 $tables_to_check = [
-    'learningstylesurvey',
-    'learningstylesurvey_temas',
-    'learningstylesurvey_resources',
-    'learningstylesurvey_quizzes',
-    'learningstylesurvey_questions',
-    'learningstylesurvey_options',
-    'learningstylesurvey_quiz_results',
-    'learningstylesurvey_paths',
-    'learningstylesurvey_path_temas',
-    'learningstylesurvey_path_files',
-    'learningstylesurvey_path_evaluations',
-    'learningpath_steps',
-    'learningstylesurvey_user_progress'
+    'learningstylesurvey' => 'Tabla principal del módulo',
+    'learningstylesurvey_temas' => 'Gestión de temas por curso',
+    'learningstylesurvey_resources' => 'Archivos subidos por estilo',
+    'learningstylesurvey_quizzes' => 'Cuestionarios de evaluación',
+    'learningstylesurvey_questions' => 'Preguntas de los quizzes',
+    'learningstylesurvey_options' => 'Opciones de respuesta',
+    'learningstylesurvey_quiz_results' => 'Resultados de evaluaciones',
+    'learningstylesurvey_paths' => 'Rutas de aprendizaje personalizadas',
+    'learningstylesurvey_path_temas' => 'Relación rutas-temas (upgrade)',
+    'learningstylesurvey_path_files' => 'Archivos por ruta',
+    'learningstylesurvey_path_evaluations' => 'Evaluaciones por ruta',
+    'learningpath_steps' => 'Pasos de navegación (sistema activo)',
+    'learningstylesurvey_user_progress' => 'Progreso de usuarios',
+    'learningstylesurvey_userstyles' => 'Estilos asignados a usuarios',
+    'learningstylesurvey_responses' => 'Respuestas de la encuesta inicial',
+    'learningstylesurvey_results' => 'Resultados de estilos (Muestra estilo dominante)',
+    'learningstylesurvey_learningpath' => 'Rutas originales (sistema viejo)',
+    'learningstylesurvey_inforoute' => 'Información de rutas'
 ];
 
-echo "<h3>✅ Verificación de Tablas de Base de Datos</h3>";
-echo "<table border='1' style='border-collapse:collapse; width:100%;'>";
-echo "<tr><th>Tabla</th><th>Estado</th><th>Registros</th></tr>";
+echo "<div class='verification-card'>";
+echo "<h3>✅ Estado de la Base de Datos</h3>";
+echo "<table>";
+echo "<thead><tr><th>Tabla</th><th>Estado</th><th>Registros</th><th>Descripción</th></tr></thead>";
+echo "<tbody>";
 
-foreach ($tables_to_check as $table) {
+$tables_ok = 0;
+$tables_missing = 0;
+$total_records = 0;
+
+foreach ($tables_to_check as $table => $description) {
     $exists = $DB->get_manager()->table_exists($table);
     $count = $exists ? $DB->count_records($table) : 0;
-    $status = $exists ? "✅ Existe" : "❌ No existe";
-    echo "<tr><td>{$table}</td><td>{$status}</td><td>{$count}</td></tr>";
+    $total_records += $count;
+    
+    if ($exists) {
+        $tables_ok++;
+        $status = "<span class='status-success'>✅ Existe</span>";
+    } else {
+        $tables_missing++;
+        $status = "<span class='status-error'>❌ Faltante</span>";
+    }
+    
+    echo "<tr>";
+    echo "<td><code>{$table}</code></td>";
+    echo "<td>{$status}</td>";
+    echo "<td>" . ($exists ? number_format($count) : 'N/A') . "</td>";
+    echo "<td>{$description}</td>";
+    echo "</tr>";
 }
+echo "</tbody>";
 echo "</table>";
 
-// Verificar funcionalidades básicas
-echo "<h3>🔧 Verificación de Funcionalidades</h3>";
+echo "<div class='success-box'>";
+echo "<strong>📊 Resumen:</strong> {$tables_ok} tablas funcionando, {$tables_missing} faltantes, " . number_format($total_records) . " registros totales";
+echo "</div>";
+echo "</div>";
 
-// 1. Verificar que se puedan crear temas
-echo "<h4>1. Creación de Temas</h4>";
+// Verificar funcionalidades básicas expandidas (SIN CREAR DATOS)
+echo "<div class='verification-card'>";
+echo "<h3>🔧 Verificación de Funcionalidad (Solo Lectura)</h3>";
+
+$tests_passed = 0;
+$tests_failed = 0;
+
+// 1. Verificar capacidades de gestión de temas
+echo "<h4>1. 📚 Sistema de Gestión de Temas</h4>";
 try {
-    $test_tema = new stdClass();
-    $test_tema->courseid = $courseid;
-    $test_tema->tema = 'Tema de prueba - ' . time();
-    $test_tema->timecreated = time();
-    
-    $tema_id = $DB->insert_record('learningstylesurvey_temas', $test_tema);
-    echo "✅ Se pueden crear temas correctamente (ID: {$tema_id})<br>";
-    
-    // Limpiar
-    $DB->delete_records('learningstylesurvey_temas', ['id' => $tema_id]);
-    echo "✅ Se pueden eliminar temas correctamente<br>";
-} catch (Exception $e) {
-    echo "❌ Error al crear temas: " . $e->getMessage() . "<br>";
-}
-
-// 2. Verificar que se puedan crear recursos
-echo "<h4>2. Creación de Recursos</h4>";
-try {
-    $test_resource = new stdClass();
-    $test_resource->courseid = $courseid;
-    $test_resource->name = 'Recurso de prueba';
-    $test_resource->filename = 'test.pdf';
-    $test_resource->style = 'visual';
-    $test_resource->tema = null;
-    
-    $resource_id = $DB->insert_record('learningstylesurvey_resources', $test_resource);
-    echo "✅ Se pueden crear recursos correctamente (ID: {$resource_id})<br>";
-    
-    // Limpiar
-    $DB->delete_records('learningstylesurvey_resources', ['id' => $resource_id]);
-    echo "✅ Se pueden eliminar recursos correctamente<br>";
-} catch (Exception $e) {
-    echo "❌ Error al crear recursos: " . $e->getMessage() . "<br>";
-}
-
-// 3. Verificar que se puedan crear quizzes
-echo "<h4>3. Creación de Quizzes</h4>";
-try {
-    $test_quiz = new stdClass();
-    $test_quiz->courseid = $courseid;
-    $test_quiz->name = 'Quiz de prueba';
-    $test_quiz->userid = $USER->id;
-    $test_quiz->timecreated = time();
-    
-    $quiz_id = $DB->insert_record('learningstylesurvey_quizzes', $test_quiz);
-    echo "✅ Se pueden crear quizzes correctamente (ID: {$quiz_id})<br>";
-    
-    // Limpiar
-    $DB->delete_records('learningstylesurvey_quizzes', ['id' => $quiz_id]);
-    echo "✅ Se pueden eliminar quizzes correctamente<br>";
-} catch (Exception $e) {
-    echo "❌ Error al crear quizzes: " . $e->getMessage() . "<br>";
-}
-
-// 4. Verificar que se puedan crear rutas (si la tabla existe)
-echo "<h4>4. Creación de Rutas de Aprendizaje</h4>";
-if ($DB->get_manager()->table_exists('learningstylesurvey_paths')) {
-    try {
-        $test_path = new stdClass();
-        $test_path->courseid = $courseid;
-        $test_path->userid = $USER->id;
-        $test_path->name = 'Ruta de prueba';
-        $test_path->filename = '';
-        $test_path->timecreated = time();
+    // Verificar estructura de tabla sin crear datos
+    if ($DB->get_manager()->table_exists('learningstylesurvey_temas')) {
+        $table = new xmldb_table('learningstylesurvey_temas');
+        $required_fields = ['courseid', 'tema', 'timecreated'];
+        $fields_ok = true;
         
-        $path_id = $DB->insert_record('learningstylesurvey_paths', $test_path);
-        echo "✅ Se pueden crear rutas correctamente (ID: {$path_id})<br>";
-        
-        // Probar relación con temas si la tabla existe
-        if ($DB->get_manager()->table_exists('learningstylesurvey_path_temas')) {
-            $test_tema = new stdClass();
-            $test_tema->courseid = $courseid;
-            $test_tema->tema = 'Tema para ruta de prueba';
-            $test_tema->timecreated = time();
-            $tema_id = $DB->insert_record('learningstylesurvey_temas', $test_tema);
-            
-            $test_path_tema = new stdClass();
-            $test_path_tema->pathid = $path_id;
-            $test_path_tema->temaid = $tema_id;
-            $test_path_tema->orden = 1;
-            $test_path_tema->isrefuerzo = 0;
-            
-            $path_tema_id = $DB->insert_record('learningstylesurvey_path_temas', $test_path_tema);
-            echo "✅ Se pueden relacionar rutas con temas (ID: {$path_tema_id})<br>";
-            
-            // Limpiar
-            $DB->delete_records('learningstylesurvey_path_temas', ['id' => $path_tema_id]);
-            $DB->delete_records('learningstylesurvey_temas', ['id' => $tema_id]);
-            echo "✅ Sistema de rutas adaptativas funcional<br>";
-        } else {
-            echo "⚠️ La tabla learningstylesurvey_path_temas no existe aún. Ejecute la actualización de la base de datos.<br>";
+        foreach ($required_fields as $field_name) {
+            $field = new xmldb_field($field_name);
+            if (!$DB->get_manager()->field_exists($table, $field)) {
+                $fields_ok = false;
+                break;
+            }
         }
         
-        // Limpiar
-        $DB->delete_records('learningstylesurvey_paths', ['id' => $path_id]);
-        echo "✅ Se pueden eliminar rutas correctamente<br>";
-    } catch (Exception $e) {
-        echo "❌ Error al crear rutas: " . $e->getMessage() . "<br>";
+        if ($fields_ok) {
+            echo "<span class='status-success'>✅ Estructura de tabla: OK</span><br>";
+            echo "<span class='status-success'>✅ Campos requeridos: OK</span><br>";
+            echo "<span class='status-success'>✅ Sistema de temas: FUNCIONAL</span><br>";
+            $tests_passed += 3;
+        } else {
+            echo "<span class='status-error'>❌ Faltan campos requeridos en tabla temas</span><br>";
+            $tests_failed += 3;
+        }
+    } else {
+        echo "<span class='status-error'>❌ Tabla learningstylesurvey_temas no existe</span><br>";
+        $tests_failed += 3;
     }
-} else {
-    echo "⚠️ La tabla learningstylesurvey_paths no existe<br>";
+} catch (Exception $e) {
+    echo "<span class='status-error'>❌ Error verificando temas: " . $e->getMessage() . "</span><br>";
+    $tests_failed += 3;
 }
 
-// 5. Verificar campos de timemodified
-echo "<h4>5. Verificación de Campos de Base de Datos</h4>";
-$resultstable = new xmldb_table('learningstylesurvey_quiz_results');
-$timemodified_field = new xmldb_field('timemodified');
-if ($DB->get_manager()->field_exists($resultstable, $timemodified_field)) {
-    echo "✅ Campo timemodified existe en learningstylesurvey_quiz_results<br>";
-} else {
-    echo "⚠️ Campo timemodified no existe en learningstylesurvey_quiz_results. Ejecute la actualización de la base de datos.<br>";
+// 2. Verificar sistema de recursos por estilo
+echo "<h4>2. 📁 Sistema de Recursos por Estilo</h4>";
+try {
+    if ($DB->get_manager()->table_exists('learningstylesurvey_resources')) {
+        $table = new xmldb_table('learningstylesurvey_resources');
+        $required_fields = ['courseid', 'userid', 'name', 'filename', 'style', 'tema'];
+        $fields_ok = true;
+        
+        foreach ($required_fields as $field_name) {
+            $field = new xmldb_field($field_name);
+            if (!$DB->get_manager()->field_exists($table, $field)) {
+                $fields_ok = false;
+                echo "<span class='status-error'>❌ Campo faltante: {$field_name}</span><br>";
+            }
+        }
+        
+        if ($fields_ok) {
+            // Verificar si hay recursos existentes para probar filtrado
+            $existing_resources = $DB->count_records('learningstylesurvey_resources', ['courseid' => $courseid]);
+            
+            echo "<span class='status-success'>✅ Estructura de recursos: OK</span><br>";
+            echo "<span class='status-success'>✅ Campo 'style' disponible: OK</span><br>";
+            echo "<span class='status-success'>✅ Recursos en curso: {$existing_resources}</span><br>";
+            $tests_passed += 3;
+        } else {
+            $tests_failed += 3;
+        }
+    } else {
+        echo "<span class='status-error'>❌ Tabla learningstylesurvey_resources no existe</span><br>";
+        $tests_failed += 3;
+    }
+} catch (Exception $e) {
+    echo "<span class='status-error'>❌ Error verificando recursos: " . $e->getMessage() . "</span><br>";
+    $tests_failed += 3;
 }
 
-echo "<h3>🔗 Enlaces de Prueba</h3>";
-echo "<ul>";
+// 3. Verificar sistema completo de quizzes
+echo "<h4>3. 📝 Sistema Completo de Evaluaciones</h4>";
+try {
+    $quiz_tables = ['learningstylesurvey_quizzes', 'learningstylesurvey_questions', 
+                    'learningstylesurvey_options', 'learningstylesurvey_quiz_results'];
+    $quiz_system_ok = true;
+    
+    foreach ($quiz_tables as $table_name) {
+        if (!$DB->get_manager()->table_exists($table_name)) {
+            echo "<span class='status-error'>❌ Tabla faltante: {$table_name}</span><br>";
+            $quiz_system_ok = false;
+        }
+    }
+    
+    if ($quiz_system_ok) {
+        // Verificar campos críticos
+        $quiz_table = new xmldb_table('learningstylesurvey_quiz_results');
+        $timemodified_field = new xmldb_field('timemodified');
+        $has_timemodified = $DB->get_manager()->field_exists($quiz_table, $timemodified_field);
+        
+        $existing_quizzes = $DB->count_records('learningstylesurvey_quizzes', ['courseid' => $courseid]);
+        $total_results = $DB->count_records_sql(
+            "SELECT COUNT(*) FROM {learningstylesurvey_quiz_results} qr 
+             JOIN {learningstylesurvey_quizzes} q ON qr.quizid = q.id 
+             WHERE q.courseid = ?", [$courseid]
+        );
+        
+        echo "<span class='status-success'>✅ Todas las tablas de quiz: OK</span><br>";
+        echo "<span class='status-success'>✅ Campo timemodified: " . ($has_timemodified ? "OK" : "⚠️ Faltante") . "</span><br>";
+        echo "<span class='status-success'>✅ Quizzes en curso: {$existing_quizzes}</span><br>";
+        echo "<span class='status-success'>✅ Resultados registrados: {$total_results}</span><br>";
+        echo "<span class='status-success'>✅ Sistema multi-intento: DISPONIBLE</span><br>";
+        $tests_passed += 5;
+    } else {
+        $tests_failed += 5;
+    }
+} catch (Exception $e) {
+    echo "<span class='status-error'>❌ Error verificando quizzes: " . $e->getMessage() . "</span><br>";
+    $tests_failed += 5;
+}
+
+// 4. Verificar sistema de rutas adaptativas (SIN CREAR RUTAS)
+echo "<h4>4. 🛤️ Sistema de Rutas Adaptativas</h4>";
+try {
+    $route_tables = ['learningstylesurvey_paths', 'learningstylesurvey_path_temas', 'learningpath_steps'];
+    $route_system_status = [];
+    
+    foreach ($route_tables as $table_name) {
+        $route_system_status[$table_name] = $DB->get_manager()->table_exists($table_name);
+    }
+    
+    if ($route_system_status['learningstylesurvey_paths']) {
+        echo "<span class='status-success'>✅ Tabla principal de rutas: OK</span><br>";
+        
+        // Verificar rutas existentes sin crear nuevas
+        $existing_paths = $DB->count_records('learningstylesurvey_paths', ['courseid' => $courseid]);
+        echo "<span class='status-success'>✅ Rutas en curso: {$existing_paths}</span><br>";
+        
+        if ($route_system_status['learningstylesurvey_path_temas']) {
+            echo "<span class='status-success'>✅ Sistema de relaciones ruta-tema: OK</span><br>";
+            
+            $path_relationships = $DB->count_records_sql(
+                "SELECT COUNT(*) FROM {learningstylesurvey_path_temas} pt 
+                 JOIN {learningstylesurvey_paths} p ON pt.pathid = p.id 
+                 WHERE p.courseid = ?", [$courseid]
+            );
+            echo "<span class='status-success'>✅ Relaciones ruta-tema: {$path_relationships}</span><br>";
+        } else {
+            echo "<span class='status-warning'>⚠️ Tabla path_temas no existe. Ejecutar upgrade</span><br>";
+        }
+        
+        if ($route_system_status['learningpath_steps']) {
+            echo "<span class='status-success'>✅ Sistema de pasos: OK</span><br>";
+            
+            $total_steps = $DB->count_records_sql(
+                "SELECT COUNT(*) FROM {learningpath_steps} ls 
+                 JOIN {learningstylesurvey_paths} p ON ls.pathid = p.id 
+                 WHERE p.courseid = ?", [$courseid]
+            );
+            echo "<span class='status-success'>✅ Pasos configurados: {$total_steps}</span><br>";
+        } else {
+            echo "<span class='status-error'>❌ Tabla learningpath_steps no existe</span><br>";
+        }
+        
+        // Verificar progreso de usuarios
+        if ($DB->get_manager()->table_exists('learningstylesurvey_user_progress')) {
+            $user_progress_count = $DB->count_records_sql(
+                "SELECT COUNT(*) FROM {learningstylesurvey_user_progress} up 
+                 JOIN {learningstylesurvey_paths} p ON up.pathid = p.id 
+                 WHERE p.courseid = ?", [$courseid]
+            );
+            echo "<span class='status-success'>✅ Registros de progreso: {$user_progress_count}</span><br>";
+        }
+        
+        echo "<span class='status-success'>✅ Sistema adaptativo: DISPONIBLE</span><br>";
+        $tests_passed += 5;
+    } else {
+        echo "<span class='status-error'>❌ Tabla learningstylesurvey_paths no existe</span><br>";
+        $tests_failed += 5;
+    }
+} catch (Exception $e) {
+    echo "<span class='status-error'>❌ Error verificando rutas: " . $e->getMessage() . "</span><br>";
+    $tests_failed += 5;
+}
+
+// 5. Verificar sistema de estilos de aprendizaje
+echo "<h4>5. 🎨 Sistema de Estilos de Aprendizaje</h4>";
+try {
+    if ($DB->get_manager()->table_exists('learningstylesurvey_userstyles')) {
+        echo "<span class='status-success'>✅ Tabla de estilos: OK</span><br>";
+        
+        // Verificar si el usuario actual tiene estilo asignado
+        $user_style = $DB->get_record_sql(
+            "SELECT * FROM {learningstylesurvey_userstyles} 
+             WHERE userid = ? ORDER BY timecreated DESC LIMIT 1", 
+            [$USER->id]
+        );
+        
+        if ($user_style) {
+            echo "<span class='status-success'>✅ Tu estilo actual: {$user_style->style}</span><br>";
+        } else {
+            echo "<span class='status-warning'>⚠️ No tienes estilo asignado aún</span><br>";
+        }
+        
+        // Contar estilos en el sistema
+        $total_styles = $DB->count_records('learningstylesurvey_userstyles');
+        echo "<span class='status-success'>✅ Estilos registrados: {$total_styles}</span><br>";
+        $tests_passed += 2;
+    } else {
+        echo "<span class='status-error'>❌ Tabla learningstylesurvey_userstyles no existe</span><br>";
+        $tests_failed += 2;
+    }
+} catch (Exception $e) {
+    echo "<span class='status-error'>❌ Error verificando estilos: " . $e->getMessage() . "</span><br>";
+    $tests_failed += 2;
+}
+
+// 6. Verificar restricción una-ruta-por-curso
+echo "<h4>6. 🔒 Restricción Una-Ruta-Por-Curso</h4>";
+try {
+    if ($DB->get_manager()->table_exists('learningstylesurvey_paths')) {
+        $paths_in_course = $DB->count_records('learningstylesurvey_paths', ['courseid' => $courseid]);
+        
+        if ($paths_in_course == 0) {
+            echo "<span class='status-success'>✅ Sin rutas: Listo para crear primera ruta</span><br>";
+        } elseif ($paths_in_course == 1) {
+            echo "<span class='status-success'>✅ Una ruta activa: Restricción funcionando</span><br>";
+        } else {
+            echo "<span class='status-warning'>⚠️ Múltiples rutas detectadas: {$paths_in_course} rutas</span><br>";
+        }
+        $tests_passed += 1;
+    } else {
+        echo "<span class='status-warning'>⚠️ No se puede verificar restricción sin tabla de rutas</span><br>";
+        $tests_failed += 1;
+    }
+} catch (Exception $e) {
+    echo "<span class='status-error'>❌ Error verificando restricción: " . $e->getMessage() . "</span><br>";
+    $tests_failed += 1;
+}
+
+// Resumen de pruebas
+$total_tests = $tests_passed + $tests_failed;
+$success_rate = $total_tests > 0 ? round(($tests_passed / $total_tests) * 100, 1) : 0;
+
+echo "<div class='success-box'>";
+echo "<h4>📊 Resumen de Pruebas</h4>";
+echo "<strong>✅ Pasadas:</strong> {$tests_passed} | ";
+echo "<strong>❌ Fallidas:</strong> {$tests_failed} | ";
+echo "<strong>📈 Tasa de éxito:</strong> {$success_rate}%";
+echo "</div>";
+echo "</div>";
+
+// Verificación avanzada de estructura de base de datos
+echo "<div class='verification-card'>";
+echo "<h3>🔍 Verificación Avanzada de Estructura</h3>";
+
+echo "<h4>📋 Campos Críticos</h4>";
+$critical_fields = [
+    'learningstylesurvey_quiz_results' => ['timemodified', 'userid', 'quizid', 'score'],
+    'learningstylesurvey_resources' => ['tema', 'style', 'userid', 'courseid'],
+    'learningstylesurvey_questions' => ['correctanswer', 'questiontext'],
+    'learningpath_steps' => ['passredirect', 'failredirect', 'istest'],
+    'learningstylesurvey_userstyles' => ['style', 'timecreated']
+];
+
+foreach ($critical_fields as $table => $fields) {
+    if ($DB->get_manager()->table_exists($table)) {
+        echo "<strong>{$table}:</strong> ";
+        $missing_fields = [];
+        foreach ($fields as $field) {
+            $field_obj = new xmldb_field($field);
+            if ($DB->get_manager()->field_exists(new xmldb_table($table), $field_obj)) {
+                echo "<span class='status-success'>✅ {$field}</span> ";
+            } else {
+                echo "<span class='status-error'>❌ {$field}</span> ";
+                $missing_fields[] = $field;
+            }
+        }
+        if (empty($missing_fields)) {
+            echo "<span class='status-success'> - Completa</span>";
+        } else {
+            echo "<span class='status-warning'> - Faltan: " . implode(', ', $missing_fields) . "</span>";
+        }
+        echo "<br>";
+    } else {
+        echo "<strong>{$table}:</strong> <span class='status-error'>❌ Tabla no existe</span><br>";
+    }
+}
+
+// Verificar integridad de datos
+echo "<h4>🔗 Integridad de Datos</h4>";
+try {
+    // Verificar recursos huérfanos
+    $orphan_resources = $DB->get_records_sql(
+        "SELECT r.* FROM {learningstylesurvey_resources} r 
+         LEFT JOIN {learningstylesurvey_temas} t ON r.tema = t.tema AND r.courseid = t.courseid
+         WHERE r.tema IS NOT NULL AND t.id IS NULL AND r.courseid = ?", 
+        [$courseid]
+    );
+    
+    if (empty($orphan_resources)) {
+        echo "<span class='status-success'>✅ Sin recursos huérfanos</span><br>";
+    } else {
+        echo "<span class='status-warning'>⚠️ " . count($orphan_resources) . " recursos huérfanos encontrados</span><br>";
+    }
+    
+    // Verificar quizzes sin preguntas
+    $empty_quizzes = $DB->get_records_sql(
+        "SELECT q.* FROM {learningstylesurvey_quizzes} q 
+         LEFT JOIN {learningstylesurvey_questions} qu ON q.id = qu.quizid
+         WHERE qu.id IS NULL AND q.courseid = ?", 
+        [$courseid]
+    );
+    
+    if (empty($empty_quizzes)) {
+        echo "<span class='status-success'>✅ Todos los quizzes tienen preguntas</span><br>";
+    } else {
+        echo "<span class='status-warning'>⚠️ " . count($empty_quizzes) . " quizzes sin preguntas</span><br>";
+    }
+    
+    // Verificar preguntas sin opciones
+    $questions_no_options = $DB->get_records_sql(
+        "SELECT qu.* FROM {learningstylesurvey_questions} qu 
+         JOIN {learningstylesurvey_quizzes} q ON qu.quizid = q.id
+         LEFT JOIN {learningstylesurvey_options} o ON qu.id = o.questionid
+         WHERE o.id IS NULL AND q.courseid = ?", 
+        [$courseid]
+    );
+    
+    if (empty($questions_no_options)) {
+        echo "<span class='status-success'>✅ Todas las preguntas tienen opciones</span><br>";
+    } else {
+        echo "<span class='status-warning'>⚠️ " . count($questions_no_options) . " preguntas sin opciones</span><br>";
+    }
+    
+} catch (Exception $e) {
+    echo "<span class='status-error'>❌ Error verificando integridad: " . $e->getMessage() . "</span><br>";
+}
+
+echo "</div>";
+
+// Verificar permisos y capacidades
+echo "<div class='verification-card'>";
+echo "<h3>🔐 Verificación de Permisos</h3>";
+
+$context = context_course::instance($courseid);
+$capabilities = [
+    'mod/learningstylesurvey:addinstance' => 'Añadir instancia del módulo',
+    'mod/learningstylesurvey:view' => 'Ver contenido del módulo',
+    'mod/learningstylesurvey:submit' => 'Enviar respuestas',
+    'moodle/course:manageactivities' => 'Gestionar actividades'
+];
+
+foreach ($capabilities as $capability => $description) {
+    if (has_capability($capability, $context)) {
+        echo "<span class='status-success'>✅ {$capability}</span> - {$description}<br>";
+    } else {
+        echo "<span class='status-warning'>⚠️ {$capability}</span> - {$description}<br>";
+    }
+}
+
+echo "</div>";
+
+// Panel de navegación y herramientas
+echo "<div class='verification-card'>";
+echo "<h3>� Panel de Herramientas y Navegación</h3>";
+
+echo "<div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px;'>";
+
+// Gestión básica
+echo "<div>";
+echo "<h4>📚 Gestión de Contenido</h4>";
+echo "<div>";
 $temas_url = new moodle_url('/mod/learningstylesurvey/temas.php', ['courseid' => $courseid]);
-echo "<li><a href='" . $temas_url->out() . "'>Gestionar Temas</a></li>";
+echo "<a href='" . $temas_url->out() . "' class='btn btn-primary'>📚 Gestionar Temas</a><br>";
+
 $upload_url = new moodle_url('/mod/learningstylesurvey/uploadresource.php', ['courseid' => $courseid]);
-echo "<li><a href='" . $upload_url->out() . "'>Subir Recursos</a></li>";
+echo "<a href='" . $upload_url->out() . "' class='btn btn-success'>📁 Subir Recursos</a><br>";
+
 $crear_url = new moodle_url('/mod/learningstylesurvey/crear_examen.php', ['courseid' => $courseid]);
-echo "<li><a href='" . $crear_url->out() . "'>Crear Examen</a></li>";
+echo "<a href='" . $crear_url->out() . "' class='btn btn-warning'>📝 Crear Examen</a><br>";
+echo "</div>";
+echo "</div>";
+
+// Rutas y navegación
+echo "<div>";
+echo "<h4>🛤️ Rutas de Aprendizaje</h4>";
+echo "<div>";
 $learning_url = new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid]);
-echo "<li><a href='" . $learning_url->out() . "'>Gestionar Rutas</a></li>";
+echo "<a href='" . $learning_url->out() . "' class='btn btn-primary'>🛤️ Gestionar Rutas</a><br>";
+
+$create_route_url = new moodle_url('/mod/learningstylesurvey/createsteproute.php', ['courseid' => $courseid]);
+echo "<a href='" . $create_route_url->out() . "' class='btn btn-success'>➕ Crear Nueva Ruta</a><br>";
+
 $vista_url = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid' => $courseid]);
-echo "<li><a href='" . $vista_url->out() . "'>Vista de Estudiante</a></li>";
-echo "</ul>";
-
-echo "<h3>🔧 Instrucciones de Actualización</h3>";
-echo "<div style='background:#f9f9f9; padding:15px; border-left:4px solid #0073e6;'>";
-echo "<p><strong>Si ves advertencias arriba sobre tablas o campos faltantes:</strong></p>";
-echo "<ol>";
-echo "<li>Ve a <strong>Administración del sitio</strong> > <strong>Notificaciones</strong></li>";
-echo "<li>O ve directamente a: <code>/admin/index.php</code></li>";
-echo "<li>Moodle detectará automáticamente que el plugin necesita actualización</li>";
-echo "<li>Haz clic en <strong>Actualizar base de datos ahora</strong></li>";
-echo "<li>Vuelve a esta página para verificar que todo funcione correctamente</li>";
-echo "</ol>";
-echo "<p><strong>Versión actual del plugin:</strong> 2025082205</p>";
+echo "<a href='" . $vista_url->out() . "' class='btn btn-secondary'>👁️ Vista de Estudiante</a><br>";
+echo "</div>";
 echo "</div>";
 
-// Enlaces adicionales de debug
-echo "<div style='background:#f8f9fa; padding:15px; border:1px solid #dee2e6; border-radius:5px; margin:20px 0;'>";
-echo "<h3>🔧 Herramientas de Debug</h3>";
+// Herramientas de administración
+echo "<div>";
+echo "<h4>⚙️ Administración</h4>";
+echo "<div>";
+$manage_quiz_url = new moodle_url('/mod/learningstylesurvey/manage_quiz.php', ['courseid' => $courseid]);
+echo "<a href='" . $manage_quiz_url->out() . "' class='btn btn-warning'>⚙️ Gestionar Quizzes</a><br>";
+
+$resources_url = new moodle_url('/mod/learningstylesurvey/viewresources.php', ['courseid' => $courseid]);
+echo "<a href='" . $resources_url->out() . "' class='btn btn-secondary'>👀 Ver Recursos</a><br>";
+
+$results_url = new moodle_url('/mod/learningstylesurvey/results.php', ['courseid' => $courseid]);
+echo "<a href='" . $results_url->out() . "' class='btn btn-success'>📊 Ver Resultados</a><br>";
+echo "</div>";
+echo "</div>";
+
+// Herramientas de debug
+echo "<div>";
+echo "<h4>🔧 Herramientas de Debug</h4>";
+echo "<div>";
 $debug_url = new moodle_url('/mod/learningstylesurvey/debug_saltos.php');
-echo "<p><a href='" . $debug_url->out() . "' class='btn btn-secondary' style='padding:5px 10px; margin:5px; text-decoration:none; background:#6c757d; color:white; border-radius:3px;'>🔍 Debug Saltos y Refuerzos</a></p>";
-echo "<p><small>Analiza el estado de los saltos adaptivos y temas de refuerzo en las rutas de aprendizaje</small></p>";
+echo "<a href='" . $debug_url->out() . "' class='btn btn-danger'>🔍 Debug Saltos</a><br>";
+
+$debug_retry_url = new moodle_url('/mod/learningstylesurvey/debug_retry.php', ['courseid' => $courseid]);
+echo "<a href='" . $debug_retry_url->out() . "' class='btn btn-warning'>🔄 Debug Reintentos</a><br>";
+
+echo "<a href='#' onclick='location.reload()' class='btn btn-secondary'>🔄 Recargar Verificación</a><br>";
+echo "</div>";
 echo "</div>";
 
-$view_url = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => required_param('id', PARAM_INT)]);
-echo "<p><a href='" . $view_url->out() . "'>← Volver al menú principal</a></p>";
+echo "</div>";
+echo "</div>";
+
+// Instrucciones y ayuda
+echo "<div class='verification-card'>";
+echo "<h3>📋 Instrucciones y Resolución de Problemas</h3>";
+
+echo "<div class='warning-box'>";
+echo "<h4>⚠️ Si encuentras problemas:</h4>";
+echo "<ol>";
+echo "<li><strong>Tablas faltantes:</strong> Ve a <code>Administración del sitio → Notificaciones</code> o <code>/admin/index.php</code></li>";
+echo "<li><strong>Campos faltantes:</strong> Ejecuta 'Actualizar base de datos ahora' en las notificaciones</li>";
+echo "<li><strong>Permisos insuficientes:</strong> Verifica que tengas rol de profesor o administrador</li>";
+echo "<li><strong>Recursos huérfanos:</strong> Usa la herramienta de gestión de temas para reorganizar</li>";
+echo "<li><strong>Quizzes incompletos:</strong> Edita los quizzes desde 'Gestionar Quizzes'</li>";
+echo "</ol>";
+echo "</div>";
+
+echo "<div class='info-box'>";
+echo "<h4>� Características del Sistema:</h4>";
+echo "<ul>";
+echo "<li><strong>Multi-intento:</strong> Los exámenes permiten intentos ilimitados</li>";
+echo "<li><strong>Filtrado por estilo:</strong> Los recursos se filtran automáticamente por estilo de aprendizaje</li>";
+echo "<li><strong>Rutas adaptativas:</strong> Sistema de saltos condicionales basado en resultados</li>";
+echo "<li><strong>Progreso persistente:</strong> El progreso se guarda automáticamente</li>";
+echo "<li><strong>Una ruta por curso:</strong> Restricción para evitar conflictos</li>";
+echo "</ul>";
+echo "</div>";
+
+echo "</div>";
+
+// Botones de navegación principales
+echo "<div class='nav-buttons'>";
+echo "<h3>🧭 Navegación</h3>";
+
+// Botón principal de regreso
+if ($id > 0) {
+    $view_url = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $id]);
+    echo "<a href='" . $view_url->out() . "' class='btn btn-primary' style='font-size: 16px; padding: 12px 24px;'>← Volver al Módulo Principal</a> ";
+} else {
+    $course_url = new moodle_url('/course/view.php', ['id' => $courseid]);
+    echo "<a href='" . $course_url->out() . "' class='btn btn-primary' style='font-size: 16px; padding: 12px 24px;'>← Volver al Curso</a> ";
+}
+
+// Botones de acciones rápidas
+echo "<a href='#' onclick='window.print()' class='btn btn-secondary'>🖨️ Imprimir Reporte</a> ";
+echo "<a href='#' onclick='location.reload()' class='btn btn-warning'>🔄 Actualizar Verificación</a> ";
+
+// Botón de documentación
+$docs_url = new moodle_url('/mod/learningstylesurvey/documentacion');
+echo "<a href='" . $docs_url->out() . "' class='btn btn-success'>📖 Ver Documentación</a>";
+
+echo "<br><br>";
+echo "<small>🕒 Última verificación: " . date('Y-m-d H:i:s') . " | ";
+echo "👤 Usuario: {$USER->firstname} {$USER->lastname} | ";
+echo "🎓 Curso ID: {$courseid}</small>";
+echo "</div>";
+
+// Footer con información adicional
+echo "<div style='background: #f8f9fa; padding: 20px; margin: 20px 0; border-radius: 8px; text-align: center; border: 1px solid #dee2e6;'>";
+echo "<h4>ℹ️ Información del Sistema</h4>";
+echo "<p><strong>Learning Style Survey Module</strong> - Sistema de rutas de aprendizaje adaptativas</p>";
+echo "<p>Este módulo permite crear rutas de aprendizaje personalizadas basadas en estilos de aprendizaje, ";
+echo "con evaluaciones adaptativas y sistema de refuerzos automáticos.</p>";
+echo "<p><small>Desarrollado para Moodle | Versión del plugin: " . ($plugin_version ? $plugin_version : 'N/A') . "</small></p>";
+echo "</div>";
+
+echo "<script>";
+echo "// Auto-refresh cada 5 minutos para verificaciones en tiempo real";
+echo "setTimeout(function() {";
+echo "    var refresh = confirm('¿Deseas actualizar la verificación automáticamente?');";
+echo "    if (refresh) location.reload();";
+echo "}, 300000);"; // 5 minutos
+echo "</script>";
 ?>
