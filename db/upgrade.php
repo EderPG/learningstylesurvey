@@ -177,5 +177,18 @@ function xmldb_learningstylesurvey_upgrade($oldversion) {
         upgrade_mod_savepoint(true, $newversion5, 'learningstylesurvey');
     }
 
+    // Version 2025090402: Agregar campo cmid a la tabla de rutas
+    $newversion6 = 2025090402;
+    if ($oldversion < $newversion6) {
+        $pathstable = new xmldb_table('learningstylesurvey_paths');
+        $cmidfield = new xmldb_field('cmid', XMLDB_TYPE_INTEGER, '10', null, false, null, null);
+        
+        if (!$dbman->field_exists($pathstable, $cmidfield)) {
+            $dbman->add_field($pathstable, $cmidfield);
+        }
+        
+        upgrade_mod_savepoint(true, $newversion6, 'learningstylesurvey');
+    }
+
     return true;
 }

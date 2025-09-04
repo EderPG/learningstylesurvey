@@ -8,6 +8,17 @@ $pathid = optional_param('pathid', 0, PARAM_INT);
 $stepid = optional_param('stepid', 0, PARAM_INT);
 $tema_salto = optional_param('tema_salto', 0, PARAM_INT); // Para saltos adaptativos por tema
 $tema_refuerzo = optional_param('tema_refuerzo', 0, PARAM_INT); // Para temas de refuerzo
+$cmid = optional_param('cmid', 0, PARAM_INT);
+
+// Si no se proporciona cmid, obtenerlo del contexto actual
+if (!$cmid) {
+    $modinfo = get_fast_modinfo($courseid);
+    $cms = $modinfo->get_instances_of('learningstylesurvey');
+    if (!empty($cms)) {
+        $firstcm = reset($cms);
+        $cmid = $firstcm->id;
+    }
+}
 
 require_login();
 
@@ -43,6 +54,7 @@ $userstyle = $DB->get_record_sql("
     ORDER BY timecreated DESC
     LIMIT 1
 ", [$USER->id]);
+
 $show_warning = false;
 if (!$userstyle) {
     $show_warning = true;
@@ -52,14 +64,6 @@ if (!$userstyle) {
     echo "<strong>¡Atención!</strong> Para acceder a la ruta de aprendizaje primero debes contestar la <b>encuesta de estilos de aprendizaje</b>.";
     echo "</div>";
     // Botón para regresar al menú principal del plugin
-    $modinfo = get_fast_modinfo($courseid);
-    $cmid = null;
-    foreach ($modinfo->get_cms() as $cm) {
-        if ($cm->modname === 'learningstylesurvey') {
-            $cmid = $cm->id;
-            break;
-        }
-    }
     if ($cmid) {
         $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
         echo html_writer::link($viewurl, 'Regresar al menú principal', ['class' => 'btn btn-primary', 'style' => 'font-size:18px; margin-top:20px;']);
@@ -105,11 +109,11 @@ if (!$pathid) {
     $lastroute = $DB->get_record_sql("
         SELECT id 
         FROM {learningstylesurvey_paths} 
-        WHERE courseid = ? 
+        WHERE courseid = ? AND cmid = ?
         ORDER BY timecreated DESC LIMIT 1
-    ", [$courseid]);
+    ", [$courseid, $cmid]);
     if (!$lastroute) {
-        throw new moodle_exception('No se encontró ninguna ruta para este curso.');
+        throw new moodle_exception('No se encontró ninguna ruta para esta actividad.');
     }
     $pathid = $lastroute->id;
 }
@@ -441,13 +445,7 @@ $quizstep = $DB->get_record_sql("
     ORDER BY s.stepnumber ASC
     LIMIT 1
 ", [$pathid]);
-$cm = $DB->get_record_sql("
-    SELECT cm.id 
-    FROM {course_modules} cm
-    JOIN {modules} m ON m.id = cm.module
-    WHERE cm.course = ? AND m.name = 'learningstylesurvey'
-    ORDER BY cm.id ASC LIMIT 1", [$courseid]);
-if ($quizstep && $cm) {
+if ($quizstep && $cmid) {
     echo "<div style='margin-top:30px;'>";
     echo "<h3>Examen programado</h3>";
     echo html_writer::link(
@@ -463,8 +461,8 @@ if ($quizstep && $cm) {
 }
 
 // Botón regresar al menú
-if ($cm) {
-    $menuurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id'=>$cm->id]);
+if ($cmid) {
+    $menuurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id'=>$cmid]);
     echo "<div style='margin-top:30px;'><a href='{$menuurl}' class='btn btn-secondary'>Regresar al menú</a></div>";
 }
 

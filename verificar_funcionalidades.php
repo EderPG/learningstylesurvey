@@ -7,6 +7,147 @@ global $DB, $USER, $CFG;
 
 $courseid = required_param('courseid', PARAM_INT);
 $id = optional_param('id', 0, PARAM_INT); // CMid para regresar
+$action = optional_param('action', '', PARAM_ALPHA); // Acción de limpieza
+$confirm = optional_param('confirm', 0, PARAM_INT); // Confirmación
+
+// Manejar acciones de limpieza de datos
+if ($action && $confirm) {
+    // Verificar sesskey manualmente para debugging
+    $sesskey_param = optional_param('sesskey', '', PARAM_ALPHANUM);
+    $debug_info = "Action={$action}, Confirm={$confirm}, Sesskey_sent={$sesskey_param}, Sesskey_expected=" . sesskey();
+    
+    if (!confirm_sesskey()) {
+        $error_message = "❌ Error de autenticación: Token de sesión inválido. <br>Debug: {$debug_info}";
+    } else {
+        $success_message = '';
+        $error_message = '';
+        
+        switch ($action) {
+            case 'clear_resources':
+                try {
+                    $count = $DB->count_records('learningstylesurvey_resources', ['courseid' => $courseid]);
+                    if ($count > 0) {
+                        $DB->delete_records('learningstylesurvey_resources', ['courseid' => $courseid]);
+                        $success_message = "✅ Se eliminaron {$count} recursos del curso.";
+                    } else {
+                        $success_message = "ℹ️ No había recursos para eliminar.";
+                    }
+                } catch (Exception $e) {
+                    $error_message = "❌ Error eliminando recursos: " . $e->getMessage();
+                }
+                break;
+                
+            case 'clear_themes':
+                try {
+                    $count = $DB->count_records('learningstylesurvey_temas', ['courseid' => $courseid]);
+                    if ($count > 0) {
+                        $DB->delete_records('learningstylesurvey_temas', ['courseid' => $courseid]);
+                        $success_message = "✅ Se eliminaron {$count} temas del curso.";
+                    } else {
+                        $success_message = "ℹ️ No había temas para eliminar.";
+                    }
+                } catch (Exception $e) {
+                    $error_message = "❌ Error eliminando temas: " . $e->getMessage();
+                }
+                break;
+                
+            case 'clear_paths':
+                try {
+                    $count = $DB->count_records('learningstylesurvey_paths', ['courseid' => $courseid]);
+                    if ($count > 0) {
+                        // Eliminar pasos relacionados primero
+                        if ($DB->get_manager()->table_exists('learningpath_steps')) {
+                            $DB->delete_records_select('learningpath_steps', 
+                                'pathid IN (SELECT id FROM {learningstylesurvey_paths} WHERE courseid = ?)', 
+                                [$courseid]);
+                        }
+                        // Eliminar relaciones path_temas
+                        if ($DB->get_manager()->table_exists('learningstylesurvey_path_temas')) {
+                            $DB->delete_records_select('learningstylesurvey_path_temas', 
+                                'pathid IN (SELECT id FROM {learningstylesurvey_paths} WHERE courseid = ?)', 
+                                [$courseid]);
+                        }
+                        // Eliminar las rutas
+                        $DB->delete_records('learningstylesurvey_paths', ['courseid' => $courseid]);
+                        $success_message = "✅ Se eliminaron {$count} rutas de aprendizaje y sus datos relacionados del curso.";
+                    } else {
+                        $success_message = "ℹ️ No había rutas para eliminar.";
+                    }
+                } catch (Exception $e) {
+                    $error_message = "❌ Error eliminando rutas: " . $e->getMessage();
+                }
+                break;
+                
+            case 'clear_survey_results':
+                try {
+                    // Obtener instancias del plugin en este curso
+                    $cms = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
+                    $survey_ids = array_map(function($cm) { return $cm->instance; }, $cms);
+                    
+                    $total_deleted = 0;
+                    if (!empty($survey_ids)) {
+                        list($in_sql, $params) = $DB->get_in_or_equal($survey_ids);
+                        
+                        // Eliminar respuestas de encuestas
+                        $count1 = $DB->count_records_select('learningstylesurvey_responses', "surveyid $in_sql", $params);
+                        if ($count1 > 0) {
+                            $DB->delete_records_select('learningstylesurvey_responses', "surveyid $in_sql", $params);
+                            $total_deleted += $count1;
+                        }
+                    }
+                    
+                    if ($total_deleted > 0) {
+                        $success_message = "✅ Se eliminaron {$total_deleted} respuestas de encuestas del curso.";
+                    } else {
+                        $success_message = "ℹ️ No había respuestas de encuestas para eliminar.";
+                    }
+                } catch (Exception $e) {
+                    $error_message = "❌ Error eliminando resultados de encuestas: " . $e->getMessage();
+                }
+                break;
+                
+            case 'clear_quizzes':
+                try {
+                    $count_quizzes = $DB->count_records('learningstylesurvey_quizzes', ['courseid' => $courseid]);
+                    
+                    if ($count_quizzes > 0) {
+                        // Eliminar resultados de quizzes
+                        $DB->delete_records('learningstylesurvey_quiz_results', ['courseid' => $courseid]);
+                        
+                        // Obtener IDs de quizzes para eliminar preguntas y opciones
+                        $quiz_ids = $DB->get_fieldset_select('learningstylesurvey_quizzes', 'id', 'courseid = ?', [$courseid]);
+                        
+                        if (!empty($quiz_ids)) {
+                            list($in_sql, $params) = $DB->get_in_or_equal($quiz_ids);
+                            
+                            // Eliminar opciones de preguntas
+                            $question_ids = $DB->get_fieldset_select('learningstylesurvey_questions', 'id', "quizid $in_sql", $params);
+                            if (!empty($question_ids)) {
+                                list($q_in_sql, $q_params) = $DB->get_in_or_equal($question_ids);
+                                $DB->delete_records_select('learningstylesurvey_options', "questionid $q_in_sql", $q_params);
+                            }
+                            
+                            // Eliminar preguntas
+                            $DB->delete_records_select('learningstylesurvey_questions', "quizid $in_sql", $params);
+                        }
+                        
+                        // Eliminar quizzes
+                        $DB->delete_records('learningstylesurvey_quizzes', ['courseid' => $courseid]);
+                        
+                        $success_message = "✅ Se eliminaron {$count_quizzes} exámenes y todos sus datos relacionados del curso.";
+                    } else {
+                        $success_message = "ℹ️ No había exámenes para eliminar.";
+                    }
+                } catch (Exception $e) {
+                    $error_message = "❌ Error eliminando exámenes: " . $e->getMessage();
+                }
+                break;
+                
+            default:
+                $error_message = "❌ Acción no reconocida: {$action}";
+        }
+    }
+}
 
 // Estilo CSS mejorado
 echo "<style>
@@ -56,6 +197,32 @@ echo "<style>
 .btn-success { background: #28a745; color: white; }
 .btn-warning { background: #ffc107; color: black; }
 .btn-danger { background: #dc3545; color: white; }
+.btn-danger:hover { background: #c82333; text-decoration: none; color: white; }
+.notification-success {
+    background: #d4edda;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+.notification-error {
+    background: #f8d7da;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 10px 0;
+}
+.cleanup-warning {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 15px 0;
+    border-left: 4px solid #ffc107;
+}
 .nav-buttons {
     background: #f8f9fa;
     padding: 15px;
@@ -85,6 +252,25 @@ echo "<div class='verification-card'>";
 echo "<h2>🔍 Verificación Completa de Funcionalidades</h2>";
 echo "<p>Sistema integral de diagnóstico para el módulo Learning Style Survey</p>";
 echo "</div>";
+
+// Mostrar notificaciones de éxito o error
+if (isset($success_message)) {
+    echo "<div class='notification-success'>{$success_message}</div>";
+}
+if (isset($error_message)) {
+    echo "<div class='notification-error'>{$error_message}</div>";
+}
+
+// Debug temporal: mostrar parámetros recibidos si hay alguna acción
+if ($action || $confirm) {
+    echo "<div class='info-box'>";
+    echo "<h4>🔍 Debug Info (temporal)</h4>";
+    echo "<strong>Action:</strong> " . ($action ? $action : 'None') . "<br>";
+    echo "<strong>Confirm:</strong> " . ($confirm ? 'Yes' : 'No') . "<br>";
+    echo "<strong>Sesskey recibido:</strong> " . optional_param('sesskey', 'None', PARAM_ALPHANUM) . "<br>";
+    echo "<strong>Sesskey esperado:</strong> " . sesskey() . "<br>";
+    echo "</div>";
+}
 
 // Verificar versión del plugin y estadísticas básicas
 $plugin_version = $DB->get_field('config_plugins', 'value', 
@@ -136,10 +322,10 @@ $tables_to_check = [
     'learningstylesurvey_questions' => 'Preguntas de los quizzes',
     'learningstylesurvey_options' => 'Opciones de respuesta',
     'learningstylesurvey_quiz_results' => 'Resultados de evaluaciones',
-    'learningstylesurvey_paths' => 'Rutas de aprendizaje personalizadas',
-    'learningstylesurvey_path_temas' => 'Relación rutas-temas (upgrade)',
-    'learningstylesurvey_path_files' => 'Archivos por ruta',
-    'learningstylesurvey_path_evaluations' => 'Evaluaciones por ruta',
+    'learningstylesurvey_paths' => 'Rutas de aprendizaje personalizadas (✨ NUEVO - con campo cmid)',
+    'learningstylesurvey_path_temas' => 'Relación rutas-temas (✨ ACTUALIZADO)',
+    'learningstylesurvey_path_files' => 'Archivos por ruta (✨ NUEVO)',
+    'learningstylesurvey_path_evaluations' => 'Evaluaciones por ruta (✨ NUEVO)',
     'learningpath_steps' => 'Pasos de navegación (sistema activo)',
     'learningstylesurvey_user_progress' => 'Progreso de usuarios',
     'learningstylesurvey_userstyles' => 'Estilos asignados a usuarios',
@@ -185,6 +371,52 @@ echo "</table>";
 echo "<div class='success-box'>";
 echo "<strong>📊 Resumen:</strong> {$tables_ok} tablas funcionando, {$tables_missing} faltantes, " . number_format($total_records) . " registros totales";
 echo "</div>";
+echo "</div>";
+
+// ✨ NUEVA SECCIÓN: Verificar actualización con campo cmid
+echo "<div class='verification-card'>";
+echo "<h3>🆕 Verificación de Nuevas Funcionalidades</h3>";
+
+// Verificar campo cmid en tabla paths
+echo "<h4>🔧 Campo cmid en Rutas (Multi-instancia)</h4>";
+if ($DB->get_manager()->table_exists('learningstylesurvey_paths')) {
+    $table = new xmldb_table('learningstylesurvey_paths');
+    $cmid_field = new xmldb_field('cmid');
+    
+    if ($DB->get_manager()->field_exists($table, $cmid_field)) {
+        echo "<span class='status-success'>✅ Campo 'cmid' existe en tabla paths</span><br>";
+        
+        // Verificar si hay rutas que usan cmid
+        $paths_with_cmid = $DB->count_records_select('learningstylesurvey_paths', 'cmid > 0');
+        $total_paths = $DB->count_records('learningstylesurvey_paths');
+        
+        echo "<span class='status-success'>✅ Rutas totales: {$total_paths}</span><br>";
+        echo "<span class='status-success'>✅ Rutas con cmid: {$paths_with_cmid}</span><br>";
+        
+        if ($paths_with_cmid > 0) {
+            echo "<span class='status-success'>✅ FUNCIONALIDAD MULTI-INSTANCIA: ACTIVA</span><br>";
+        } else {
+            echo "<span class='status-warning'>⚠️ Aún no hay rutas que usen multi-instancia</span><br>";
+        }
+    } else {
+        echo "<span class='status-error'>❌ Campo 'cmid' NO existe. Ejecuta la migración de la base de datos.</span><br>";
+    }
+} else {
+    echo "<span class='status-error'>❌ Tabla paths no existe</span><br>";
+}
+
+// Verificar nuevas tablas de archivos y evaluaciones
+echo "<h4>📁 Nuevas Tablas de Archivos y Evaluaciones</h4>";
+$new_tables = ['learningstylesurvey_path_files', 'learningstylesurvey_path_evaluations'];
+foreach ($new_tables as $table_name) {
+    if ($DB->get_manager()->table_exists($table_name)) {
+        $count = $DB->count_records($table_name);
+        echo "<span class='status-success'>✅ Tabla {$table_name}: OK ({$count} registros)</span><br>";
+    } else {
+        echo "<span class='status-error'>❌ Tabla {$table_name}: NO EXISTE</span><br>";
+    }
+}
+
 echo "</div>";
 
 // Verificar funcionalidades básicas expandidas (SIN CREAR DATOS)
@@ -558,13 +790,13 @@ echo "<div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(
 echo "<div>";
 echo "<h4>📚 Gestión de Contenido</h4>";
 echo "<div>";
-$temas_url = new moodle_url('/mod/learningstylesurvey/temas.php', ['courseid' => $courseid]);
+$temas_url = new moodle_url('/mod/learningstylesurvey/temas.php', ['courseid' => $courseid, 'cmid' => $id]);
 echo "<a href='" . $temas_url->out() . "' class='btn btn-primary'>📚 Gestionar Temas</a><br>";
 
-$upload_url = new moodle_url('/mod/learningstylesurvey/uploadresource.php', ['courseid' => $courseid]);
+$upload_url = new moodle_url('/mod/learningstylesurvey/uploadresource.php', ['courseid' => $courseid, 'cmid' => $id]);
 echo "<a href='" . $upload_url->out() . "' class='btn btn-success'>📁 Subir Recursos</a><br>";
 
-$crear_url = new moodle_url('/mod/learningstylesurvey/crear_examen.php', ['courseid' => $courseid]);
+$crear_url = new moodle_url('/mod/learningstylesurvey/crear_examen.php', ['courseid' => $courseid, 'cmid' => $id]);
 echo "<a href='" . $crear_url->out() . "' class='btn btn-warning'>📝 Crear Examen</a><br>";
 echo "</div>";
 echo "</div>";
@@ -631,14 +863,64 @@ echo "<li><strong>Quizzes incompletos:</strong> Edita los quizzes desde 'Gestion
 echo "</ol>";
 echo "</div>";
 
+// ⚠️ NUEVA SECCIÓN: Herramientas de Limpieza de Datos
+echo "<div class='verification-card'>";
+echo "<h3>🗑️ Herramientas de Limpieza de Base de Datos</h3>";
+
+echo "<div class='cleanup-warning'>";
+echo "<strong>⚠️ ADVERTENCIA:</strong> Estas herramientas eliminan datos permanentemente. ";
+echo "Úsalas solo si necesitas limpiar datos de prueba o corregir problemas. ";
+echo "<strong>No hay forma de recuperar los datos eliminados.</strong>";
+echo "</div>";
+
+// Solo mostrar a administradores del sitio
+if (is_siteadmin($USER)) {
+    
+    // Mostrar estadísticas actuales
+    echo "<h4>📊 Datos Actuales del Curso</h4>";
+    $stats = [];
+    $stats['Recursos'] = $DB->count_records('learningstylesurvey_resources', ['courseid' => $courseid]);
+    $stats['Temas'] = $DB->count_records('learningstylesurvey_temas', ['courseid' => $courseid]);
+    $stats['Rutas'] = $DB->count_records('learningstylesurvey_paths', ['courseid' => $courseid]);
+    $stats['Exámenes'] = $DB->count_records('learningstylesurvey_quizzes', ['courseid' => $courseid]);
+    
+    // Contar respuestas de encuestas
+    $cms = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
+    $survey_count = 0;
+    if (!empty($cms)) {
+        $survey_ids = array_map(function($cm) { return $cm->instance; }, $cms);
+        list($in_sql, $params) = $DB->get_in_or_equal($survey_ids);
+        $survey_count = $DB->count_records_select('learningstylesurvey_responses', "surveyid $in_sql", $params);
+    }
+    $stats['Respuestas de encuestas'] = $survey_count;
+    
+    echo "<div class='stats-grid'>";
+    foreach ($stats as $type => $count) {
+        echo "<div class='stat-card'>";
+        echo "<strong>{$type}</strong><br>";
+        echo "<span style='font-size: 24px; color: " . ($count > 0 ? '#28a745' : '#6c757d') . ";'>{$count}</span>";
+        echo "</div>";
+    }
+    echo "</div>";
+    
+    // Botones de limpieza
+    // ...existing code...
+    
+} else {
+    // ...existing code...
+}
+
+echo "</div>";
+
 echo "<div class='info-box'>";
-echo "<h4>� Características del Sistema:</h4>";
+echo "<h4>ℹ️ Características del Sistema:</h4>";
 echo "<ul>";
 echo "<li><strong>Multi-intento:</strong> Los exámenes permiten intentos ilimitados</li>";
 echo "<li><strong>Filtrado por estilo:</strong> Los recursos se filtran automáticamente por estilo de aprendizaje</li>";
 echo "<li><strong>Rutas adaptativas:</strong> Sistema de saltos condicionales basado en resultados</li>";
 echo "<li><strong>Progreso persistente:</strong> El progreso se guarda automáticamente</li>";
-echo "<li><strong>Una ruta por curso:</strong> Restricción para evitar conflictos</li>";
+echo "<li><strong>Multi-instancia:</strong> ✨ Múltiples rutas por curso (NUEVO)</li>";
+echo "<li><strong>Navegación contextual:</strong> ✨ Botones mantienen contexto de instancia (NUEVO)</li>";
 echo "</ul>";
 echo "</div>";
 
@@ -680,11 +962,11 @@ echo "con evaluaciones adaptativas y sistema de refuerzos automáticos.</p>";
 echo "<p><small>Desarrollado para Moodle | Versión del plugin: " . ($plugin_version ? $plugin_version : 'N/A') . "</small></p>";
 echo "</div>";
 
-echo "<script>";
-echo "// Auto-refresh cada 5 minutos para verificaciones en tiempo real";
-echo "setTimeout(function() {";
-echo "    var refresh = confirm('¿Deseas actualizar la verificación automáticamente?');";
-echo "    if (refresh) location.reload();";
-echo "}, 300000);"; // 5 minutos
+echo "<script type='text/javascript'>";
+// Auto-refresh cada 5 minutos para verificaciones en tiempo real
+echo "setTimeout(function() {\n";
+echo "    var refresh = confirm('¿Deseas actualizar la verificación automáticamente?');\n";
+echo "    if (refresh) location.reload();\n";
+echo "}, 300000); // 5 minutos\n";
 echo "</script>";
 ?>

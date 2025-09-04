@@ -2,6 +2,7 @@
 require('../../config.php');
 
 $courseid = required_param('courseid', PARAM_INT);
+$cmid = optional_param('cmid', 0, PARAM_INT); // ID de la instancia específica
 $course = get_course($courseid);
 
 require_login($course);
@@ -9,7 +10,7 @@ $context = context_course::instance($course->id);
 require_capability('moodle/course:update', $context);
 
 $PAGE->set_context($context);
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/temas.php', ['courseid' => $courseid]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/temas.php', ['courseid' => $courseid, 'cmid' => $cmid]));
 $PAGE->set_title('Temas del curso');
 $PAGE->set_heading($course->fullname);
 
@@ -113,13 +114,18 @@ if ($temas) {
 
 echo html_writer::tag('br', '');
 
-// Obtener el cmid del módulo learningstylesurvey en este curso
-$cms = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
-$firstcm = reset($cms);
-$cmid = $firstcm->id;
+// Usar el cmid correcto si se proporcionó, sino buscar la primera instancia
+if ($cmid > 0) {
+    $targetcmid = $cmid;
+} else {
+    // Obtener el cmid del módulo learningstylesurvey en este curso (fallback)
+    $cms = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
+    $firstcm = reset($cms);
+    $targetcmid = $firstcm->id;
+}
 
 echo html_writer::link(
-    new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]),
+    new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $targetcmid]),
     'Regresar al menu',
     ['class' => 'btn btn-secondary']
 );

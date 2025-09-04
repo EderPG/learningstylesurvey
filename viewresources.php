@@ -2,17 +2,23 @@
 require_once("../../config.php");
 
 $courseid = required_param("courseid", PARAM_INT);
+$cmid = optional_param("cmid", 0, PARAM_INT); // ID de la instancia específica
 require_login($courseid);
 
 $context = context_course::instance($courseid);
 $PAGE->set_context($context);
-$PAGE->set_url("/mod/learningstylesurvey/viewresources.php", ["courseid" => $courseid]);
+$PAGE->set_url("/mod/learningstylesurvey/viewresources.php", ["courseid" => $courseid, "cmid" => $cmid]);
 $PAGE->set_title("Material adaptativo");
 $PAGE->set_heading("Material adaptativo subido");
 
-$cm = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
-$firstcm = reset($cm);
-$cmid = $firstcm->id;
+// Usar el cmid correcto si se proporcionó, sino buscar la primera instancia
+if ($cmid > 0) {
+    $targetcmid = $cmid;
+} else {
+    $cm = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
+    $firstcm = reset($cm);
+    $targetcmid = $firstcm->id;
+}
 
 // Acción para eliminar recurso (confirmación básica con window.confirm)
 $deleteid = optional_param('deleteid', 0, PARAM_INT);
@@ -74,7 +80,7 @@ if (empty($resources)) {
     echo $OUTPUT->notification("No tienes material adaptativo disponible.", "notifymessage");
     // Botón para regresar al curso SIEMPRE visible
     echo html_writer::div(
-        html_writer::link(new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]), 'Regresar al menu', [
+        html_writer::link(new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $targetcmid]), 'Regresar al menu', [
             'class' => 'btn btn-dark',
             'style' => 'margin-top: 30px;'
         ]),
@@ -101,7 +107,7 @@ echo '</form>';
     if (empty($resources)) {
         echo $OUTPUT->notification("No tienes material adaptativo disponible para el tema seleccionado.", "notifymessage");
         echo html_writer::div(
-            html_writer::link(new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]), 'Regresar al menu', [
+            html_writer::link(new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $targetcmid]), 'Regresar al menu', [
                 'class' => 'btn btn-dark',
                 'style' => 'margin-top: 30px;'
             ]),
@@ -168,7 +174,7 @@ echo '</form>';
 
 // Botón para regresar al curso
 echo html_writer::div(
-    html_writer::link(new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]), 'Regresar al menú', [
+    html_writer::link(new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $targetcmid]), 'Regresar al menú', [
         'class' => 'btn btn-dark',
         'style' => 'margin-top: 30px;'
     ]),

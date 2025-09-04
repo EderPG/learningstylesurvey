@@ -5,19 +5,36 @@ require_login();
 global $DB, $USER;
 
 $courseid = required_param('courseid', PARAM_INT);
+$cmid = optional_param('cmid', 0, PARAM_INT);
+
+// Si no se proporciona cmid, obtenerlo del context del módulo actual
+if (!$cmid) {
+    $modinfo = get_fast_modinfo($courseid);
+    foreach ($modinfo->get_cms() as $cm) {
+        if ($cm->modname === 'learningstylesurvey') {
+            $cmid = $cm->id;
+            break;
+        }
+    }
+}
+
 $context = context_course::instance($courseid);
-$baseurl = new moodle_url('/mod/learningstylesurvey/createsteproute.php', ['courseid' => $courseid]);
-$returnurl = new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid]);
+$baseurl = new moodle_url('/mod/learningstylesurvey/createsteproute.php', ['courseid' => $courseid, 'cmid' => $cmid]);
+$returnurl = new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
 
 $PAGE->set_url($baseurl);
 $PAGE->set_context($context);
 $PAGE->set_title("Ruta de Aprendizaje");
 $PAGE->set_heading("Ruta de Aprendizaje");
 
-// Verificar si ya existe una ruta para este usuario y curso
-$existing_path = $DB->get_record('learningstylesurvey_paths', ['courseid' => $courseid, 'userid' => $USER->id]);
+// Verificar si ya existe una ruta para este usuario, curso y cmid específico
+$existing_path = $DB->get_record('learningstylesurvey_paths', [
+    'courseid' => $courseid, 
+    'userid' => $USER->id,
+    'cmid' => $cmid
+]);
 if ($existing_path) {
-    redirect($returnurl, "Ya tienes una ruta creada para este curso. Solo se permite una ruta por curso.", 3);
+    redirect($returnurl, "Ya tienes una ruta creada para esta instancia del plugin. Solo se permite una ruta por actividad.", 3);
     exit;
 }
 
@@ -91,6 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $ruta = new stdClass();
     $ruta->courseid = $courseid;
     $ruta->userid = $USER->id;
+    $ruta->cmid = $cmid;
     $ruta->name = $nombre;
     $ruta->timecreated = time();
     $pathid = $DB->insert_record('learningstylesurvey_paths', $ruta);
