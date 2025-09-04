@@ -3,16 +3,22 @@ require_once("../../config.php");
 require_login();
 
 $courseid = required_param("courseid", PARAM_INT);
+$cmid = optional_param("cmid", 0, PARAM_INT); // ID de la instancia específica
 
 $context = context_course::instance($courseid);
 $PAGE->set_context($context);
-$PAGE->set_url("/mod/learningstylesurvey/uploadresource.php", ["courseid" => $courseid]);
+$PAGE->set_url("/mod/learningstylesurvey/uploadresource.php", ["courseid" => $courseid, "cmid" => $cmid]);
 $PAGE->set_title("Subir recurso adaptativo");
 $PAGE->set_heading("Subir recurso adaptativo");
 
-$cm = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
-$firstcm = reset($cm);
-$cmid = $firstcm->id;
+// Usar el cmid correcto si se proporcionó, sino buscar la primera instancia
+if ($cmid > 0) {
+    $targetcmid = $cmid;
+} else {
+    $cm = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
+    $firstcm = reset($cm);
+    $targetcmid = $firstcm->id;
+}
 
 $errors = [];
 $success = false;
@@ -161,7 +167,7 @@ if ($success) {
 
 <div style="text-align: center; margin-top: 30px;">
     <?php
-    $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid, 'courseid' => $courseid]);
+    $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $targetcmid, 'courseid' => $courseid]);
     echo '<a href="' . $viewurl->out() . '" class="btn btn-secondary" style="padding:10px 15px; border-radius:5px;">Regresar al menú</a>';
     ?>
 </div>

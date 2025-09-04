@@ -3,16 +3,29 @@ require_once('../../config.php');
 require_login();
 
 $courseid = required_param('courseid', PARAM_INT);
+$cmid = optional_param('cmid', 0, PARAM_INT); // ID de la instancia específica
 $quizid = optional_param('quizid', 0, PARAM_INT);
 $action = optional_param('action', '', PARAM_ALPHA);
 
 $context = context_course::instance($courseid);
 $PAGE->set_context($context);
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/manage_quiz.php', ['courseid' => $courseid]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/manage_quiz.php', ['courseid' => $courseid, 'cmid' => $cmid]));
 $PAGE->set_title('Gestionar Examen');
 $PAGE->set_heading('Gestionar Examen');
 
 global $DB, $OUTPUT;
+
+// Determinar el cmid correcto una sola vez
+if ($cmid > 0) {
+    $targetcmid = $cmid;
+} else {
+    $targetcmid = 0;
+    $instances = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
+    if ($instances) {
+        $firstcm = reset($instances);
+        $targetcmid = $firstcm->id;
+    }
+}
 
 // Eliminar examen
 if ($action === 'delete' && $quizid) {
@@ -104,14 +117,8 @@ if ($action === 'edit' && $quizid) {
     echo $OUTPUT->header();
     echo $OUTPUT->heading('Editar Examen');
     // Botón regresar igual que en la vista principal
-    $cmid = 0;
-    $instances = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
-    if ($instances) {
-        $firstcm = reset($instances);
-        $cmid = $firstcm->id;
-    }
-    if ($cmid) {
-        $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
+    if ($targetcmid) {
+        $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $targetcmid]);
         echo '<a href="' . $viewurl->out() . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al menú</a>';
     } else {
         echo '<a href="' . new moodle_url('/course/view.php', ['id' => $courseid]) . '" class="btn btn-dark" style="margin-bottom:20px;">Regresar al curso</a>';
@@ -545,16 +552,9 @@ echo $OUTPUT->header();
     <?php
     echo $OUTPUT->heading('📋 Exámenes del curso', 2, 'main');
 
-    // Obtener el cmid del módulo learningstylesurvey
-    $cmid = 0;
-    $instances = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
-    if ($instances) {
-        $firstcm = reset($instances);
-        $cmid = $firstcm->id;
-    }
-
-    if ($cmid) {
-        $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
+    // Usar el mismo targetcmid que arriba
+    if ($targetcmid) {
+        $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $targetcmid]);
         echo '<a href="' . $viewurl->out() . '" class="btn btn-dark" style="margin-bottom:25px; display: inline-flex; align-items: center; gap: 8px;">⬅️ Regresar al menú</a>';
     } else {
         echo '<a href="' . new moodle_url('/course/view.php', ['id' => $courseid]) . '" class="btn btn-dark" style="margin-bottom:25px; display: inline-flex; align-items: center; gap: 8px;">⬅️ Regresar al curso</a>';

@@ -56,11 +56,14 @@ if (!$progress) {
     $progress->id = $DB->insert_record('learningstylesurvey_user_progress', $progress);
 }
 
-// ✅ Buscar el siguiente paso en orden
+// ✅ Buscar el siguiente paso en orden que NO sea tema de refuerzo
 $nextstep = $DB->get_record_sql("
-    SELECT * FROM {learningpath_steps}
-    WHERE pathid = ? AND stepnumber > ?
-    ORDER BY stepnumber ASC LIMIT 1",
+    SELECT s.* FROM {learningpath_steps} s
+    LEFT JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id AND s.istest = 0
+    LEFT JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
+    WHERE s.pathid = ? AND s.stepnumber > ? 
+    AND (s.istest = 1 OR pt.isrefuerzo = 0 OR pt.isrefuerzo IS NULL)
+    ORDER BY s.stepnumber ASC LIMIT 1",
     [$pathid, $current->stepnumber]
 );
 

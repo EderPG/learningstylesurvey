@@ -64,6 +64,8 @@
                 <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true" />
                 <FIELD NAME="style" TYPE="char" LENGTH="50" NOTNULL="true" />
                 <FIELD NAME="tema" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
                 <FIELD NAME="recoveryquizid" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" />
   </FIELDS>
             <KEYS>
@@ -139,6 +141,7 @@
                 <FIELD NAME="score" TYPE="int" LENGTH="10" NOTNULL="true" />
                 <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" />
                 <FIELD NAME="timecompleted" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" />
             </FIELDS>
             <KEYS>
                 <KEY NAME="primary" TYPE="primary" FIELDS="id" />
@@ -164,6 +167,7 @@
         <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" />
         <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" />
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="false" />
     </FIELDS>
     <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id" />
@@ -201,6 +205,7 @@
         <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del curso"/>
         <FIELD NAME="tema" TYPE="text" NOTNULL="true" COMMENT="Nombre o descripción del tema"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Fecha de creación (timestamp)"/>
+        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Usuario que creó el tema"/>
     </FIELDS>
     <KEYS>
          <KEY NAME="primary" TYPE="primary" FIELDS="id" COMMENT="Clave primaria"/>

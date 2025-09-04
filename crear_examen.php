@@ -3,16 +3,22 @@ require_once('../../config.php');
 require_login();
 
 $courseid = required_param('courseid', PARAM_INT);
+$cmid = optional_param('cmid', 0, PARAM_INT); // ID de la instancia específica
 
-// Intentar obtener el cmid del módulo learningstylesurvey
-$cmid = 0;
-$instances = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
-if ($instances) {
-    $firstcm = reset($instances);
-    $cmid = $firstcm->id;
+// Usar el cmid correcto si se proporcionó, sino buscar la primera instancia
+if ($cmid > 0) {
+    $targetcmid = $cmid;
+} else {
+    // Intentar obtener el cmid del módulo learningstylesurvey
+    $targetcmid = 0;
+    $instances = get_fast_modinfo($courseid)->get_instances_of('learningstylesurvey');
+    if ($instances) {
+        $firstcm = reset($instances);
+        $targetcmid = $firstcm->id;
+    }
 }
 
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/crear_examen.php', ['courseid' => $courseid]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/crear_examen.php', ['courseid' => $courseid, 'cmid' => $cmid]));
 $PAGE->set_context(context_course::instance($courseid));
 $PAGE->set_title('Crear Recurso de Evaluación');
 $PAGE->set_heading('Crear Recurso de Evaluación');
@@ -57,9 +63,9 @@ echo $OUTPUT->heading('Formulario para Crear Evaluación');
     <button type="submit" class="btn btn-primary">Guardar Evaluación</button>
 
     <!-- ✅ Botón regresar -->
-    <?php if ($cmid): ?>
+    <?php if ($targetcmid): ?>
         <?php 
-        $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $cmid]);
+        $viewurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id' => $targetcmid]);
         echo '<a href="' . $viewurl->out() . '" class="btn btn-secondary">Regresar al menú</a>';
         ?>
     <?php else: ?>
