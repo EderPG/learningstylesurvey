@@ -166,6 +166,11 @@ if ($tema_refuerzo) {
         
         if ($recursos_refuerzo) {
             $resource = reset($recursos_refuerzo);
+            // Mostrar título del tema de refuerzo
+            echo "<div style='background:#fff3cd; border-left:4px solid #ffc107; padding:15px; margin-bottom:20px; border-radius:5px;'>";
+            echo "<h3 style='margin:0; color:#856404;'>🔄 " . format_string($tema->tema) . " (Refuerzo)</h3>";
+            echo "</div>";
+            
             mostrar_recurso($resource);
         } else {
             echo "<div class='alert alert-info'>No hay recursos de refuerzo específicos para tu estilo. Revisa el material general del tema.</div>";
@@ -242,6 +247,14 @@ if ($stepid) {
             // Si es un recurso, mostrarlo
             $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
             if ($resource) {
+                // Mostrar título del tema actual
+                $tema_actual = $DB->get_record('learningstylesurvey_temas', ['id' => $resource->tema]);
+                if ($tema_actual) {
+                    echo "<div style='background:#e7f3ff; border-left:4px solid #007bff; padding:15px; margin-bottom:20px; border-radius:5px;'>";
+                    echo "<h3 style='margin:0; color:#0056b3;'>📚 " . format_string($tema_actual->tema) . "</h3>";
+                    echo "</div>";
+                }
+                
                 mostrar_recurso($resource);
                 echo "<form method='POST' action='siguiente.php'>
                         <input type='hidden' name='courseid' value='{$courseid}'>
@@ -302,6 +315,12 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         $tema = $DB->get_record('learningstylesurvey_temas', ['id' => $tema_refuerzo_id]);
         
         echo "<div class='alert alert-warning' style='margin-bottom:20px;'>Has reprobado el examen, accede al tema de refuerzo: <strong>" . format_string($tema->tema) . "</strong></div>";
+        
+        // Mostrar título del tema de refuerzo
+        echo "<div style='background:#fff3cd; border-left:4px solid #ffc107; padding:15px; margin-bottom:20px; border-radius:5px;'>";
+        echo "<h3 style='margin:0; color:#856404;'>🔄 " . format_string($tema->tema) . " (Refuerzo)</h3>";
+        echo "</div>";
+        
         mostrar_recurso($resource);
         
         // Botón para reintentar el examen después del refuerzo
@@ -320,19 +339,85 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         echo "<div class='alert alert-warning'>No hay recursos de refuerzo específicos para tu estilo de aprendizaje.</div>";
     }
 } else {
-    // Flujo normal: mostrar primer recurso no-examen filtrado por estilo del usuario
-    $step = $DB->get_record_sql("
-        SELECT s.*
-        FROM {learningpath_steps} s
-        JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
-        WHERE s.pathid = ? AND r.style = ? AND s.istest = 0
-        ORDER BY s.stepnumber ASC
-        LIMIT 1
-    ", [$pathid, $style]);
+    // Flujo normal: consultar progreso del usuario para mostrar el paso correcto
+    $progress = $DB->get_record('learningstylesurvey_user_progress', [
+        'userid' => $USER->id,
+        'pathid' => $pathid
+    ]);
+    
+    if ($progress && $progress->current_stepid) {
+        // Si hay progreso, mostrar el paso actual del usuario
+        $step = $DB->get_record('learningpath_steps', ['id' => $progress->current_stepid]);
+        
+        // Verificar que el step existe y coincide con el estilo del usuario
+        if ($step && !$step->istest) {
+            $resource_check = $DB->get_record('learningstylesurvey_resources', [
+                'id' => $step->resourceid,
+                'style' => $style
+            ]);
+            
+            // Verificar que el tema no sea de refuerzo
+            if ($resource_check) {
+                $tema_check = $DB->get_record('learningstylesurvey_path_temas', [
+                    'pathid' => $pathid,
+                    'temaid' => $resource_check->tema,
+                    'isrefuerzo' => 0  // Solo temas normales
+                ]);
+                if (!$tema_check) {
+                    // Si el tema es de refuerzo, buscar el siguiente paso apropiado
+                    $resource_check = null;
+                }
+            }
+            
+            if (!$resource_check) {
+                // Si el paso actual no coincide con el estilo o es refuerzo, buscar el siguiente paso apropiado
+                $step = $DB->get_record_sql("
+                    SELECT s.*
+                    FROM {learningpath_steps} s
+                    JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
+                    JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
+                    WHERE s.pathid = ? AND r.style = ? AND s.istest = 0 AND s.stepnumber > ? AND pt.isrefuerzo = 0
+                    ORDER BY s.stepnumber ASC
+                    LIMIT 1
+                ", [$pathid, $style, $step->stepnumber]);
+            }
+        }
+    } else {
+        // Si no hay progreso, crear uno y mostrar el primer recurso (excluyendo temas de refuerzo)
+        $step = $DB->get_record_sql("
+            SELECT s.*
+            FROM {learningpath_steps} s
+            JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
+            JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
+            WHERE s.pathid = ? AND r.style = ? AND s.istest = 0 AND pt.isrefuerzo = 0
+            ORDER BY s.stepnumber ASC
+            LIMIT 1
+        ", [$pathid, $style]);
+        
+        if ($step) {
+            // Crear registro de progreso
+            $new_progress = (object)[
+                'userid' => $USER->id,
+                'pathid' => $pathid,
+                'current_stepid' => $step->id,
+                'status' => 'inprogress',
+                'timemodified' => time()
+            ];
+            $DB->insert_record('learningstylesurvey_user_progress', $new_progress);
+        }
+    }
     
     if ($step) {
         $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
         if ($resource) {
+            // Mostrar título del tema actual
+            $tema_actual = $DB->get_record('learningstylesurvey_temas', ['id' => $resource->tema]);
+            if ($tema_actual) {
+                echo "<div style='background:#e7f3ff; border-left:4px solid #007bff; padding:15px; margin-bottom:20px; border-radius:5px;'>";
+                echo "<h3 style='margin:0; color:#0056b3;'>📚 " . format_string($tema_actual->tema) . "</h3>";
+                echo "</div>";
+            }
+            
             mostrar_recurso($resource);
             
             // Botón de avance manual
