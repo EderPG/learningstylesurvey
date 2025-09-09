@@ -137,7 +137,7 @@ if (!$userstyle) {
 $style = $userstyle->style; // El estilo ya viene normalizado desde la base de datos
 
 // Debug temporal - mostrar información del filtrado
-$debug_info = optional_param('debug', 0, PARAM_INT);
+$debug_info = optional_param('debug', 0, PARAM_INT); // Debug desactivado
 if ($debug_info) {
     echo "<div class='alert alert-info'>";
     echo "<h4>Debug - Información de filtrado:</h4>";
@@ -274,7 +274,14 @@ if ($tema_salto) {
                     echo "</div>";
                 } else {
                     // No hay más pasos, la ruta está completa
-                    echo "<div class='alert alert-info' style='margin-top:20px;'>¡Has completado la ruta de aprendizaje!</div>";
+                    echo "<div class='alert alert-success' style='margin-top:20px; text-align:center; padding:25px;'>";
+                    echo "<h4>🎉 ¡Has completado la ruta de aprendizaje!</h4>";
+                    echo "<p>¡Felicitaciones! Has terminado exitosamente todos los contenidos.</p>";
+                    if ($cmid) {
+                        $menuurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id'=>$cmid]);
+                        echo "<a href='{$menuurl}' class='btn btn-primary btn-lg' style='margin-top:15px;'>Regresar al menú principal</a>";
+                    }
+                    echo "</div>";
                 }
             } else {
                 // Este tema no está en la ruta, regresar al flujo normal
@@ -535,9 +542,46 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         'pathid' => $pathid
     ]);
     
+    // Debug temporal - comentar cuando funcione
+    if ($debug_info) {
+        echo "<div class='alert alert-warning'>";
+        echo "<h4>Debug - Flujo normal:</h4>";
+        echo "<p><strong>Progreso encontrado:</strong> " . ($progress ? "SÍ (Step ID: {$progress->current_stepid})" : "NO") . "</p>";
+        echo "<p><strong>Path ID:</strong> {$pathid}</p>";
+        echo "<p><strong>User ID:</strong> {$USER->id}</p>";
+        echo "<p><strong>Estilo:</strong> {$style}</p>";
+        
+        if ($progress) {
+            // Verificar el paso actual
+            $current_step_check = $DB->get_record('learningpath_steps', ['id' => $progress->current_stepid]);
+            echo "<p><strong>Paso actual existe:</strong> " . ($current_step_check ? "SÍ" : "NO") . "</p>";
+            
+            if ($current_step_check) {
+                echo "<p><strong>Paso detalles:</strong> Recurso ID {$current_step_check->resourceid}, Test: {$current_step_check->istest}, Step Number: {$current_step_check->stepnumber}</p>";
+                
+                // Verificar el recurso del paso
+                $resource_check = $DB->get_record('learningstylesurvey_resources', ['id' => $current_step_check->resourceid]);
+                echo "<p><strong>Recurso existe:</strong> " . ($resource_check ? "SÍ (Estilo: {$resource_check->style}, Tema: {$resource_check->tema})" : "NO") . "</p>";
+            }
+        }
+        echo "</div>";
+    }
+    
     if ($progress && $progress->current_stepid) {
         // Si hay progreso, mostrar el paso actual del usuario
         $step = $DB->get_record('learningpath_steps', ['id' => $progress->current_stepid]);
+        
+        // Debug temporal
+        if ($debug_info) {
+            echo "<div class='alert alert-info'>";
+            echo "<h4>Debug - Verificando paso actual:</h4>";
+            echo "<p><strong>Step encontrado:</strong> " . ($step ? "SÍ" : "NO") . "</p>";
+            if ($step) {
+                echo "<p><strong>Es test:</strong> " . ($step->istest ? "SÍ" : "NO") . "</p>";
+                echo "<p><strong>Resource ID:</strong> {$step->resourceid}</p>";
+            }
+            echo "</div>";
+        }
         
         // Verificar que el step existe y coincide con el estilo del usuario
         if ($step && !$step->istest) {
@@ -546,6 +590,18 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                 'style' => $style
             ]);
             
+            // Debug temporal
+            if ($debug_info) {
+                echo "<div class='alert alert-warning'>";
+                echo "<h4>Debug - Validación de recurso:</h4>";
+                echo "<p><strong>Recurso encontrado para estilo:</strong> " . ($resource_check ? "SÍ" : "NO") . "</p>";
+                if ($resource_check) {
+                    echo "<p><strong>Recurso estilo:</strong> {$resource_check->style}</p>";
+                    echo "<p><strong>Recurso tema:</strong> {$resource_check->tema}</p>";
+                }
+                echo "</div>";
+            }
+            
             // Verificar que el tema no sea de refuerzo
             if ($resource_check) {
                 $tema_check = $DB->get_record('learningstylesurvey_path_temas', [
@@ -553,6 +609,15 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                     'temaid' => $resource_check->tema,
                     'isrefuerzo' => 0  // Solo temas normales
                 ]);
+                
+                // Debug temporal
+                if ($debug_info) {
+                    echo "<div class='alert alert-secondary'>";
+                    echo "<h4>Debug - Validación de tema:</h4>";
+                    echo "<p><strong>Tema válido (no refuerzo):</strong> " . ($tema_check ? "SÍ" : "NO") . "</p>";
+                    echo "</div>";
+                }
+                
                 if (!$tema_check) {
                     // Si el tema es de refuerzo, buscar el siguiente paso apropiado
                     $resource_check = null;
@@ -597,8 +662,103 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         }
     }
     
+    // Debug temporal - validación final del paso
+    if ($debug_info) {
+        echo "<div class='alert alert-danger'>";
+        echo "<h4>Debug - Validación final del paso:</h4>";
+        echo "<p><strong>¿Paso válido encontrado?:</strong> " . ($step ? "SÍ (Step ID: {$step->id})" : "NO") . "</p>";
+        if ($step) {
+            echo "<p><strong>Resource ID del paso:</strong> {$step->resourceid}</p>";
+            echo "<p><strong>Es test:</strong> " . ($step->istest ? "SÍ" : "NO") . "</p>";
+        }
+        echo "</div>";
+    }
+    
     if ($step) {
-        $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
+        if ($step->istest) {
+            // Si es un test, buscar en la tabla de quizzes
+            $quiz = $DB->get_record('learningstylesurvey_quizzes', ['id' => $step->resourceid]);
+            
+            // Debug temporal
+            if ($debug_info) {
+                echo "<div class='alert alert-success'>";
+                echo "<h4>Debug - Quiz encontrado:</h4>";
+                echo "<p><strong>Quiz encontrado:</strong> " . ($quiz ? "SÍ" : "NO") . "</p>";
+                if ($quiz) {
+                    echo "<p><strong>Quiz nombre:</strong> {$quiz->name}</p>";
+                    echo "<p><strong>Quiz ID:</strong> {$quiz->id}</p>";
+                }
+                echo "</div>";
+            }
+            
+            if ($quiz) {
+                // Verificar si ya fue aprobado
+                $quiz_result = $DB->get_record_sql("
+                    SELECT * FROM {learningstylesurvey_quiz_results}
+                    WHERE userid = ? AND quizid = ? AND score >= 70
+                    ORDER BY timecompleted DESC LIMIT 1
+                ", [$USER->id, $quiz->id]);
+                
+                if ($quiz_result) {
+                    // Examen ya aprobado, avanzar al siguiente paso
+                    $next_step = $DB->get_record_sql("
+                        SELECT s.*
+                        FROM {learningpath_steps} s
+                        JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
+                        JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
+                        WHERE s.pathid = ? AND r.style = ? AND s.istest = 0 AND s.stepnumber > ? AND pt.isrefuerzo = 0
+                        ORDER BY s.stepnumber ASC
+                        LIMIT 1
+                    ", [$pathid, $style, $step->stepnumber]);
+                    
+                    if ($next_step) {
+                        // Actualizar progreso al siguiente paso
+                        $progress->current_stepid = $next_step->id;
+                        $progress->timemodified = time();
+                        $DB->update_record('learningstylesurvey_user_progress', $progress);
+                        
+                        // Usar el siguiente paso como paso actual
+                        $step = $next_step;
+                    } else {
+                        $step = null; // No hay más pasos, ir a finalización
+                    }
+                } else {
+                    // Mostrar el examen
+                    echo "<div class='alert alert-info'>Tienes un examen pendiente: <strong>" . format_string($quiz->name) . "</strong></div>";
+                    $quizurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+                        'id' => $quiz->id,
+                        'courseid' => $courseid,
+                        'embedded' => 1,
+                        'cmid' => $cmid
+                    ]);
+                    echo "<a href='{$quizurl}' class='btn btn-primary btn-lg'>📝 Realizar examen</a>";
+                    echo "</div>";
+                    echo $OUTPUT->footer();
+                    exit;
+                }
+            }
+        }
+        
+        // Si llegamos aquí y aún tenemos un step, debe ser un recurso
+        if ($step && !$step->istest) {
+            $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
+        } else {
+            $resource = null;
+        }
+        
+        // Debug temporal
+        if ($debug_info) {
+            echo "<div class='alert alert-success'>";
+            echo "<h4>Debug - Recurso final:</h4>";
+            echo "<p><strong>Recurso encontrado:</strong> " . ($resource ? "SÍ" : "NO") . "</p>";
+            if ($resource) {
+                echo "<p><strong>Recurso estilo:</strong> {$resource->style}</p>";
+                echo "<p><strong>Recurso tema:</strong> {$resource->tema}</p>";
+                echo "<p><strong>Archivo:</strong> {$resource->filename}</p>";
+            }
+            echo "</div>";
+        }
+        
         if ($resource) {
             // Mostrar título del tema actual
             $tema_actual = $DB->get_record('learningstylesurvey_temas', ['id' => $resource->tema]);
@@ -620,7 +780,75 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                   </form>";
         }
     } else {
-        echo "<div class='alert alert-info'>No hay recursos para tu estilo en esta ruta.</div>";
+        // No hay más recursos - verificar si hay examen pendiente
+        $pending_quiz = $DB->get_record_sql("
+            SELECT s.*
+            FROM {learningpath_steps} s
+            WHERE s.pathid = ? AND s.istest = 1
+            ORDER BY s.stepnumber ASC
+            LIMIT 1
+        ", [$pathid]);
+        
+        if ($pending_quiz) {
+            // Verificar si este examen ya fue aprobado
+            $quiz_result = $DB->get_record_sql("
+                SELECT qr.* FROM {learningstylesurvey_quiz_results} qr
+                WHERE qr.userid = ? AND qr.quizid = ? AND qr.score >= 70
+                ORDER BY qr.timecompleted DESC LIMIT 1
+            ", [$USER->id, $pending_quiz->resourceid]);
+            
+            if (!$quiz_result) {
+                echo "<div class='alert alert-warning' style='text-align:center; padding:25px;'>";
+                echo "<h4>📚 ¡Has completado todos los recursos del tema!</h4>";
+                echo "<p>Ya has estudiado todo el material disponible para tu estilo de aprendizaje.</p>";
+                echo "<p><strong>💡 Ahora es momento de evaluar lo aprendido.</strong></p>";
+                echo "<p>Haz clic en el botón de abajo para realizar el examen.</p>";
+                echo "</div>";
+            } else {
+                echo "<div class='alert alert-success' style='text-align:center; padding:25px;'>";
+                echo "<h4>🎉 ¡Felicitaciones!</h4>";
+                echo "<p>Has completado exitosamente toda la ruta de aprendizaje.</p>";
+                echo "<p>✅ Examen aprobado con {$quiz_result->score}%</p>";
+                if ($cmid) {
+                    $menuurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id'=>$cmid]);
+                    echo "<a href='{$menuurl}' class='btn btn-primary btn-lg' style='margin-top:10px;'>Regresar al menú principal</a>";
+                }
+                echo "</div>";
+            }
+        } else {
+            // Debug temporal - comentar cuando funcione
+            if ($debug_info) {
+                echo "<div class='alert alert-danger'>";
+                echo "<h4>Debug - No hay recursos disponibles:</h4>";
+                echo "<p><strong>Path ID:</strong> {$pathid}</p>";
+                echo "<p><strong>Estilo:</strong> {$style}</p>";
+                
+                // Verificar cuántos pasos hay en total para este estilo
+                $total_steps = $DB->get_records_sql("
+                    SELECT s.*, r.style, r.tema
+                    FROM {learningpath_steps} s
+                    JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
+                    WHERE s.pathid = ? AND r.style = ? AND s.istest = 0
+                    ORDER BY s.stepnumber ASC
+                ", [$pathid, $style]);
+                
+                echo "<p><strong>Pasos totales para tu estilo:</strong> " . count($total_steps) . "</p>";
+                
+                if ($total_steps) {
+                    echo "<ul>";
+                    foreach ($total_steps as $ts) {
+                        echo "<li>Step {$ts->stepnumber}: Recurso {$ts->resourceid}, Tema {$ts->tema}</li>";
+                    }
+                    echo "</ul>";
+                }
+                echo "</div>";
+            }
+            
+            echo "<div class='alert alert-info' style='text-align:center;'>";
+            echo "<h4>📖 Ruta en progreso</h4>";
+            echo "<p>No hay más recursos disponibles en este momento para tu estilo de aprendizaje.</p>";
+            echo "</div>";
+        }
     }
 }
 
