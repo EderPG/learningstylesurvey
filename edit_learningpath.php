@@ -5,17 +5,18 @@ require_login();
 global $DB, $USER;
 
 $courseid = required_param('courseid', PARAM_INT);
+$cmid = required_param('cmid', PARAM_INT); // Obtener el Course Module ID para identificar la instancia
 $context = context_course::instance($courseid);
-$baseurl = new moodle_url('/mod/learningstylesurvey/edit_learningpath.php', ['courseid' => $courseid]);
-$returnurl = new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid]);
+$baseurl = new moodle_url('/mod/learningstylesurvey/edit_learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
+$returnurl = new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
 
 $PAGE->set_url($baseurl);
 $PAGE->set_context($context);
 $PAGE->set_title("Editar Ruta de Aprendizaje");
 $PAGE->set_heading("Editar Ruta de Aprendizaje");
 
-// Obtener rutas del usuario actual
-$rutas = $DB->get_records('learningstylesurvey_paths', ['courseid' => $courseid, 'userid' => $USER->id]);
+// Obtener rutas del usuario actual (el cmid se usa solo para navegación)
+$rutas = $DB->get_records('learningstylesurvey_paths', array('courseid' => $courseid, 'userid' => $USER->id));
 
 if (!isset($_POST['pathid']) && !isset($_GET['id'])) {
     echo $OUTPUT->header();
@@ -48,7 +49,7 @@ if (!isset($_POST['pathid']) && !isset($_GET['id'])) {
 }
 
 $pathid = isset($_POST['pathid']) ? (int) $_POST['pathid'] : (int) $_GET['id'];
-$ruta = $DB->get_record('learningstylesurvey_paths', ['id' => $pathid, 'courseid' => $courseid, 'userid' => $USER->id], '*', MUST_EXIST);
+$ruta = $DB->get_record('learningstylesurvey_paths', array('id' => $pathid, 'courseid' => $courseid, 'userid' => $USER->id), '*', MUST_EXIST);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar'])) {
     $nombre = required_param('nombre', PARAM_TEXT);
@@ -65,6 +66,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar'])) {
     $saltos_reprueba = optional_param('saltos_reprueba', '', PARAM_RAW);
     $orden_items = optional_param('orden_hidden', '', PARAM_RAW);
 
+    // Debug temporal - mostrar valores recibidos
+    $debug_mode = true; // Cambiar a false cuando funcione
+    if ($debug_mode) {
+        echo "<div style='background: #f0f0f0; padding: 10px; margin: 10px; border: 1px solid #ccc;'>";
+        echo "<h4>Debug - Valores recibidos:</h4>";
+        echo "<p><strong>temas_hidden:</strong> '$temas_hidden'</p>";
+        echo "<p><strong>temas_ids:</strong> " . print_r($temas_ids, true) . "</p>";
+        echo "<p><strong>evaluaciones:</strong> '$evaluaciones'</p>";
+        echo "<p><strong>orden_items:</strong> '$orden_items'</p>";
+        echo "<p><strong>saltos_aprueba:</strong> '$saltos_aprueba'</p>";
+        echo "<p><strong>saltos_reprueba:</strong> '$saltos_reprueba'</p>";
+        echo "</div>";
+    }
+
     if (empty($temas_ids) && empty($evaluaciones)) {
         redirect($baseurl . '&id=' . $pathid, "Debe existir al menos un recurso o una evaluación para los temas seleccionados.", 3);
         exit;
@@ -76,10 +91,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar'])) {
     $ruta_update->name = $nombre;
     $DB->update_record('learningstylesurvey_paths', $ruta_update);
 
-    // Eliminar registros anteriores
-    $DB->delete_records('learningstylesurvey_path_temas', ['pathid' => $pathid]);
-    $DB->delete_records('learningstylesurvey_path_evaluations', ['pathid' => $pathid]);
-    $DB->delete_records('learningpath_steps', ['pathid' => $pathid]);
+    // SOLO eliminar temas y evaluaciones - MANTENER learningpath_steps
+    $DB->delete_records('learningstylesurvey_path_temas', array('pathid' => $pathid));
+    $DB->delete_records('learningstylesurvey_path_evaluations', array('pathid' => $pathid));
+    
+    // NO borrar learningpath_steps - solo actualizarlos
 
     $orden_array = !empty($orden_items) ? explode(',', $orden_items) : [];
     $step_number = 1;
@@ -108,14 +124,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar'])) {
                 ]);
 
                 foreach ($tema_resources as $resource) {
-                    $step = new stdClass();
-                    $step->pathid = $pathid;
-                    $step->stepnumber = $step_number;
-                    $step->resourceid = $resource->id;
-                    $step->istest = 0;
-                    $step->passredirect = 0;
-                    $step->failredirect = 0;
-                    $DB->insert_record('learningpath_steps', $step);
+                    // Verificar si ya existe un learningpath_step para este recurso
+                    $existing_step = $DB->get_record('learningpath_steps', [
+                        'pathid' => $pathid, 
+                        'resourceid' => $resource->id, 
+                        'istest' => 0
+                    ]);
+
+                    if ($existing_step) {
+                        // Actualizar registro existente manteniendo saltos si los tiene
+                        $step_update = new stdClass();
+                        $step_update->id = $existing_step->id;
+                        $step_update->stepnumber = $step_number;
+                        // NO tocar los saltos existentes
+                        $DB->update_record('learningpath_steps', $step_update);
+                    } else {
+                        // Crear nuevo registro solo si no existe
+                        $step = new stdClass();
+                        $step->pathid = $pathid;
+                        $step->stepnumber = $step_number;
+                        $step->resourceid = $resource->id;
+                        $step->istest = 0;
+                        $step->passredirect = 0;
+                        $step->failredirect = 0;
+                        $DB->insert_record('learningpath_steps', $step);
+                    }
                 }
                 $step_number++;
             }
@@ -136,15 +169,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar'])) {
                 if (!empty($saltos_aprueba)) {
                     $saltos_aprueba_array = explode(',', $saltos_aprueba);
                     foreach ($saltos_aprueba_array as $salto) {
-                        list($eval_origen, $destino) = explode(':', $salto);
-                        if ($eval_origen == $eval_id) {
-                            $primer_recurso = $DB->get_field_sql("
-                                SELECT r.id FROM {learningstylesurvey_resources} r
-                                JOIN {learningstylesurvey_temas} t ON r.tema = t.id
-                                WHERE t.id = ? AND r.courseid = ? AND r.userid = ?
-                                ORDER BY r.id ASC LIMIT 1
-                            ", [$destino, $courseid, $USER->id]);
-                            $pass_redirect = $primer_recurso;
+                        if (strpos($salto, ':') !== false) {
+                            list($eval_origen, $destino) = explode(':', $salto);
+                            if ($eval_origen == $eval_id) {
+                                // Buscar el primer recurso del tema destino
+                                $primer_recurso = $DB->get_field_sql("
+                                    SELECT r.id FROM {learningstylesurvey_resources} r
+                                    WHERE r.tema = ? AND r.courseid = ? AND r.userid = ?
+                                    ORDER BY r.id ASC LIMIT 1
+                                ", [$destino, $courseid, $USER->id]);
+                                
+                                if ($primer_recurso) {
+                                    $pass_redirect = $primer_recurso;
+                                } else {
+                                    // Si no hay recursos, usar el ID del tema como referencia
+                                    $pass_redirect = $destino;
+                                }
+                            }
                         }
                     }
                 }
@@ -152,27 +193,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar'])) {
                 if (!empty($saltos_reprueba)) {
                     $saltos_reprueba_array = explode(',', $saltos_reprueba);
                     foreach ($saltos_reprueba_array as $salto) {
-                        list($eval_origen, $destino) = explode(':', $salto);
-                        if ($eval_origen == $eval_id) {
-                            $primer_recurso = $DB->get_field_sql("
-                                SELECT r.id FROM {learningstylesurvey_resources} r
-                                JOIN {learningstylesurvey_temas} t ON r.tema = t.id
-                                WHERE t.id = ? AND r.courseid = ? AND r.userid = ?
-                                ORDER BY r.id ASC LIMIT 1
-                            ", [$destino, $courseid, $USER->id]);
-                            $fail_redirect = $primer_recurso;
+                        if (strpos($salto, ':') !== false) {
+                            list($eval_origen, $destino) = explode(':', $salto);
+                            if ($eval_origen == $eval_id) {
+                                // Buscar el primer recurso del tema destino (para refuerzo)
+                                $primer_recurso = $DB->get_field_sql("
+                                    SELECT r.id FROM {learningstylesurvey_resources} r
+                                    WHERE r.tema = ? AND r.courseid = ? AND r.userid = ?
+                                    ORDER BY r.id ASC LIMIT 1
+                                ", [$destino, $courseid, $USER->id]);
+                                
+                                if ($primer_recurso) {
+                                    $fail_redirect = $primer_recurso;
+                                } else {
+                                    // Si no hay recursos, usar el ID del tema como referencia
+                                    $fail_redirect = $destino;
+                                }
+                            }
                         }
                     }
                 }
 
-                $step = new stdClass();
-                $step->pathid = $pathid;
-                $step->stepnumber = $step_number;
-                $step->resourceid = $eval_id;
-                $step->istest = 1;
-                $step->passredirect = $pass_redirect;
-                $step->failredirect = $fail_redirect;
-                $DB->insert_record('learningpath_steps', $step);
+                // Verificar si ya existe un learningpath_step para esta evaluación
+                $existing_step = $DB->get_record('learningpath_steps', [
+                    'pathid' => $pathid, 
+                    'resourceid' => $eval_id, 
+                    'istest' => 1
+                ]);
+
+                if ($existing_step) {
+                    // Actualizar registro existente
+                    $step_update = new stdClass();
+                    $step_update->id = $existing_step->id;
+                    $step_update->stepnumber = $step_number;
+                    
+                    // Solo actualizar saltos si están configurados en el formulario
+                    if ($pass_redirect > 0 || $fail_redirect > 0) {
+                        $step_update->passredirect = $pass_redirect;
+                        $step_update->failredirect = $fail_redirect;
+                    }
+                    // Si no hay saltos configurados, mantener los existentes
+                    
+                    $DB->update_record('learningpath_steps', $step_update);
+                } else {
+                    // Crear nuevo registro solo si no existe
+                    $step = new stdClass();
+                    $step->pathid = $pathid;
+                    $step->stepnumber = $step_number;
+                    $step->resourceid = $eval_id;
+                    $step->istest = 1;
+                    $step->passredirect = $pass_redirect;
+                    $step->failredirect = $fail_redirect;
+                    $DB->insert_record('learningpath_steps', $step);
+                }
                 $step_number++;
             }
         }
@@ -181,9 +254,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar'])) {
     redirect($returnurl, "Ruta actualizada exitosamente.", 2);
 }
 
-// ✅ Cargar temas y evaluaciones - Filtrados por usuario
-$temas = $DB->get_records('learningstylesurvey_temas', ['courseid' => $courseid, 'userid' => $USER->id]);
-$evaluaciones = $DB->get_records('learningstylesurvey_quizzes', ['courseid' => $courseid, 'userid' => $USER->id]);
+// ✅ Cargar temas y evaluaciones - Filtrados por usuario (sin cmid en BD)
+$temas = $DB->get_records('learningstylesurvey_temas', array('courseid' => $courseid, 'userid' => $USER->id));
+$evaluaciones = $DB->get_records('learningstylesurvey_quizzes', array('courseid' => $courseid, 'userid' => $USER->id));
 
 // Cargar datos existentes de la ruta
 $path_temas = $DB->get_records('learningstylesurvey_path_temas', ['pathid' => $pathid], 'orden ASC');
@@ -192,6 +265,10 @@ $existing_steps = $DB->get_records('learningpath_steps', ['pathid' => $pathid], 
 
 echo $OUTPUT->header();
 echo $OUTPUT->heading("Editar Ruta de Aprendizaje: " . format_string($ruta->name));
+
+// Agregar jQuery UI para sortable
+echo '<script src="https://code.jquery.com/ui/1.12.1/jquery-ui.min.js"></script>';
+echo '<link rel="stylesheet" href="https://code.jquery.com/ui/1.12.1/themes/ui-lightness/jquery-ui.css">';
 ?>
 
 <style>
@@ -270,6 +347,25 @@ echo $OUTPUT->heading("Editar Ruta de Aprendizaje: " . format_string($ruta->name
     .route-item:hover {
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         transform: translateY(-1px);
+    }
+    
+    /* Estilos para jQuery UI Sortable */
+    .route-item.ui-sortable-placeholder {
+        border: 2px dashed #007bff;
+        background: #f8f9ff;
+        height: 80px;
+        visibility: visible !important;
+        border-left: 5px dashed #007bff !important;
+    }
+    
+    .route-item.ui-sortable-helper {
+        box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+        transform: rotate(2deg);
+        opacity: 0.9;
+    }
+    
+    #sortable-route {
+        min-height: 50px;
     }
     .route-item.evaluacion {
         border-left: 5px solid #dc3545;
@@ -448,24 +544,102 @@ $(document).ready(function() {
     let routeItems = [];
     let nextUniqueId = 1;
 
+    // Datos de temas para búsqueda global - TODOS los temas del curso que tienen recursos
+    const temasData = <?php 
+        // Cargar TODOS los temas del curso que tienen recursos para poder resolver cualquier ID
+        $sql = "SELECT t.id, t.tema 
+                FROM {learningstylesurvey_temas} t
+                WHERE t.courseid = ? AND t.userid = ?
+                AND EXISTS (
+                    SELECT 1 FROM {learningstylesurvey_resources} r 
+                    WHERE r.tema = t.id AND r.courseid = t.courseid AND r.userid = t.userid
+                )";
+        $all_temas_with_resources = $DB->get_records_sql($sql, array($courseid, $USER->id));
+        
+        $temas_array = array();
+        foreach ($all_temas_with_resources as $tema) {
+            $temas_array[$tema->id] = $tema->tema;
+        }
+        echo json_encode($temas_array);
+    ?>;
+
+    // Función para obtener nombre de tema por ID (disponible globalmente)
+    window.getTemaNameById = function(temaId) {
+        console.log('Buscando tema ID:', temaId, 'en:', temasData);
+        // Intentar buscar como string y como número
+        let nombre = temasData[temaId] || temasData[String(temaId)] || temasData[parseInt(temaId)];
+        if (!nombre) {
+            console.warn('No se encontró tema con ID:', temaId);
+            return `Tema ID: ${temaId}`;
+        }
+        return nombre;
+    };
+
+    // Función para obtener nombre de tema por ID de recurso
+    window.getTemaNameByResourceId = function(resourceId) {
+        // Los saltos apuntan a IDs de recursos, necesitamos el tema de ese recurso
+        const recursosData = <?php 
+            // Obtener mapeo de recurso_id -> tema_nombre
+            $recursos_tema_map = $DB->get_records_sql("
+                SELECT r.id as resource_id, t.tema as tema_name 
+                FROM {learningstylesurvey_resources} r
+                JOIN {learningstylesurvey_temas} t ON r.tema = t.id  
+                WHERE r.courseid = ? AND r.userid = ?
+            ", array($courseid, $USER->id));
+            
+            $map = array();
+            foreach ($recursos_tema_map as $item) {
+                $map[$item->resource_id] = $item->tema_name;
+            }
+            echo json_encode($map);
+        ?>;
+        
+        console.log('Buscando tema para recurso ID:', resourceId, 'en:', recursosData);
+        let temaName = recursosData[resourceId] || recursosData[String(resourceId)] || recursosData[parseInt(resourceId)];
+        if (!temaName) {
+            console.warn('No se encontró tema para recurso ID:', resourceId);
+            return `Recurso ID: ${resourceId}`;
+        }
+        return temaName;
+    };
+
+    // Debug: mostrar datos cargados
+    console.log('Datos de temas cargados:', temasData);
+    console.log('PathID actual:', <?php echo $pathid; ?>);
+    console.log('Datos de la ruta cargados desde BD:', <?php 
+        echo json_encode([
+            'path_temas' => array_values($path_temas),
+            'path_evaluaciones' => array_values($path_evaluaciones),
+            'existing_steps' => array_values($existing_steps)
+        ]); 
+    ?>);
+
     // Cargar datos existentes de la ruta
     <?php
+    // Crear un array combinado de todos los elementos para mantener el orden correcto
+    $all_items = [];
+    
     // Cargar temas existentes
     foreach ($path_temas as $pt) {
         $tema = $DB->get_record('learningstylesurvey_temas', ['id' => $pt->temaid]);
         if ($tema) {
-            echo "routeItems.push({
-                uniqueId: 'tema_' + {$pt->temaid},
-                type: 'tema',
-                id: {$pt->temaid},
-                name: " . json_encode($tema->tema) . ",
-                orden: {$pt->orden},
-                es_refuerzo: " . ($pt->isrefuerzo ? 'true' : 'false') . ",
-                passredirect: null,
-                failredirect: null
-            });\n";
+            $all_items[] = [
+                'type' => 'tema',
+                'id' => $pt->temaid,
+                'name' => $tema->tema,
+                'orden' => $pt->orden,
+                'es_refuerzo' => $pt->isrefuerzo
+            ];
         }
     }
+    
+    // Obtener TODOS los recursos válidos (para validar saltos)
+    $recursos_validos = $DB->get_records_sql("
+        SELECT id 
+        FROM {learningstylesurvey_resources} 
+        WHERE courseid = ? AND userid = ?
+    ", array($courseid, $USER->id));
+    $recursos_validos_para_saltos = array_keys($recursos_validos);
     
     // Cargar evaluaciones existentes
     foreach ($path_evaluaciones as $pe) {
@@ -475,24 +649,70 @@ $(document).ready(function() {
             $step = $DB->get_record('learningpath_steps', ['pathid' => $pathid, 'resourceid' => $pe->quizid, 'istest' => 1]);
             $pass_redirect = $step ? $step->passredirect : 0;
             $fail_redirect = $step ? $step->failredirect : 0;
+            $orden_eval = $step ? $step->stepnumber : 999;
             
+            // Los saltos se preservan tal como están configurados
+            // No validamos porque pueden apuntar a recursos válidos fuera de la ruta actual
+            /*
+            // VALIDAR saltos contra recursos que existen (no temas)
+            if ($pass_redirect && !in_array($pass_redirect, $recursos_validos_para_saltos)) {
+                $pass_redirect = 0; // Limpiar salto inválido
+                // Actualizar en la BD inmediatamente
+                $DB->set_field('learningpath_steps', 'passredirect', 0, 
+                    ['pathid' => $pathid, 'resourceid' => $pe->quizid, 'istest' => 1]);
+            }
+            if ($fail_redirect && !in_array($fail_redirect, $recursos_validos_para_saltos)) {
+                $fail_redirect = 0; // Limpiar salto inválido
+                // Actualizar en la BD inmediatamente
+                $DB->set_field('learningpath_steps', 'failredirect', 0, 
+                    ['pathid' => $pathid, 'resourceid' => $pe->quizid, 'istest' => 1]);
+            }
+            */
+            
+            $all_items[] = [
+                'type' => 'evaluacion',
+                'id' => $pe->quizid,
+                'name' => $eval->name,
+                'orden' => $orden_eval,
+                'passredirect' => $pass_redirect,
+                'failredirect' => $fail_redirect
+            ];
+        }
+    }
+    
+    // Ordenar todos los elementos por orden
+    usort($all_items, function($a, $b) {
+        return $a['orden'] - $b['orden'];
+    });
+    
+    // Generar JavaScript para cada elemento en el orden correcto
+    foreach ($all_items as $item) {
+        if ($item['type'] === 'tema') {
             echo "routeItems.push({
-                uniqueId: 'eval_' + {$pe->quizid},
+                uniqueId: 'tema_{$item['id']}',
+                type: 'tema',
+                id: {$item['id']},
+                name: " . json_encode($item['name']) . ",
+                orden: {$item['orden']},
+                es_refuerzo: " . ($item['es_refuerzo'] ? 'true' : 'false') . ",
+                passredirect: null,
+                failredirect: null
+            });\n";
+        } else {
+            echo "routeItems.push({
+                uniqueId: 'eval_{$item['id']}',
                 type: 'evaluacion',
-                id: {$pe->quizid},
-                name: " . json_encode($eval->name) . ",
-                orden: " . ($step ? $step->stepnumber : 999) . ",
+                id: {$item['id']},
+                name: " . json_encode($item['name']) . ",
+                orden: {$item['orden']},
                 es_refuerzo: false,
-                passredirect: {$pass_redirect},
-                failredirect: {$fail_redirect}
+                passredirect: {$item['passredirect']},
+                failredirect: {$item['failredirect']}
             });\n";
         }
     }
     ?>
 
-    // Ordenar por orden existente
-    routeItems.sort((a, b) => a.orden - b.orden);
-    
     // Ajustar nextUniqueId
     if (routeItems.length > 0) {
         nextUniqueId = Math.max(...routeItems.map(item => {
@@ -547,12 +767,14 @@ $(document).ready(function() {
             // Mostrar saltos configurados
             if (item.type === 'evaluacion') {
                 if (item.passredirect) {
-                    const passItem = routeItems.find(r => r.uniqueId == item.passredirect);
-                    html += `<small>✅ Si aprueba → ${passItem ? passItem.name : 'Elemento no encontrado'}</small><br>`;
+                    // Los saltos apuntan a IDs de recursos, obtener el nombre del tema
+                    const passText = window.getTemaNameByResourceId(item.passredirect);
+                    html += `<small>✅ Si aprueba → ${passText}</small><br>`;
                 }
                 if (item.failredirect) {
-                    const failItem = routeItems.find(r => r.uniqueId == item.failredirect);
-                    html += `<small>❌ Si reprueba → ${failItem ? failItem.name + ' (Refuerzo)' : 'Elemento no encontrado'}</small>`;
+                    // Los saltos apuntan a IDs de recursos, obtener el nombre del tema  
+                    const failText = window.getTemaNameByResourceId(item.failredirect) + ' (Refuerzo)';
+                    html += `<small>❌ Si reprueba → ${failText}</small>`;
                 }
             }
             
@@ -561,6 +783,28 @@ $(document).ready(function() {
         html += '</div>';
         
         preview.html(html);
+        
+        // Hacer sortable la lista para reordenar
+        $("#sortable-route").sortable({
+            update: function(event, ui) {
+                // Actualizar el orden de routeItems basado en el nuevo orden visual
+                const sortedUniqueIds = $("#sortable-route .route-item").map(function() {
+                    return $(this).data('unique-id');
+                }).get();
+                
+                // Reordenar el array routeItems según el nuevo orden
+                const newOrderItems = [];
+                sortedUniqueIds.forEach(uniqueId => {
+                    const item = routeItems.find(item => item.uniqueId === uniqueId);
+                    if (item) {
+                        newOrderItems.push(item);
+                    }
+                });
+                
+                routeItems = newOrderItems;
+                updateHiddenFields();
+            }
+        }).disableSelection();
         
         // Hacer sortable
         $("#sortable-route").sortable({
@@ -586,12 +830,12 @@ $(document).ready(function() {
         
         const saltosAprueba = routeItems
             .filter(item => item.type === 'evaluacion' && item.passredirect)
-            .map(item => `${item.id}:${item.passredirect.replace('tema_', '')}`)
+            .map(item => `${item.id}:${item.passredirect}`)
             .join(',');
         
         const saltosReprueba = routeItems
             .filter(item => item.type === 'evaluacion' && item.failredirect)
-            .map(item => `${item.id}:${item.failredirect.replace('tema_', '')}`)
+            .map(item => `${item.id}:${item.failredirect}`)
             .join(',');
         
         $('#temas_hidden').val(temas.join(','));
@@ -705,10 +949,11 @@ $(document).ready(function() {
         let optionsFail = '<option value="">-- Sin salto --</option>';
         
         temasDisponibles.forEach(r => {
-            optionsPass += `<option value="${r.uniqueId}" ${item.passredirect == r.uniqueId ? 'selected' : ''}>${r.name}</option>`;
+            // Usar el ID real del tema, no el uniqueId
+            optionsPass += `<option value="${r.id}" ${item.passredirect == r.id ? 'selected' : ''}>${r.name}</option>`;
             // Solo mostrar "(Refuerzo)" si el tema realmente es de refuerzo
             const refuerzoText = r.es_refuerzo ? ' (Refuerzo)' : '';
-            optionsFail += `<option value="${r.uniqueId}" ${item.failredirect == r.uniqueId ? 'selected' : ''}>${r.name}${refuerzoText}</option>`;
+            optionsFail += `<option value="${r.id}" ${item.failredirect == r.id ? 'selected' : ''}>${r.name}${refuerzoText}</option>`;
         });
 
         const html = `
@@ -734,8 +979,9 @@ $(document).ready(function() {
             const passValue = $('#salto-aprueba').val();
             const failValue = $('#salto-reprueba').val();
             
-            item.passredirect = passValue || null;
-            item.failredirect = failValue || null;
+            // Convertir a números o null
+            item.passredirect = passValue ? parseInt(passValue) : null;
+            item.failredirect = failValue ? parseInt(failValue) : null;
             
             $('.config-popup, #overlay').remove();
             updatePreview();

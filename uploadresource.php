@@ -35,25 +35,43 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($name) || empty($style) || empty($file['name']) || empty($tema)) {
         $errors[] = "Todos los campos son obligatorios.";
     } else {
-    $upload_dir = __DIR__ . '/uploads/';
-    $originalname = basename($file['name']);
-    $filename = $style . '_' . $originalname;
-    $fullpath = $upload_dir . $filename;
+        // Validar tipo de archivo
+        $allowed_extensions = ['txt', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 
+                              'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg',
+                              'mp4', 'webm', 'avi', 'mov', 'mp3', 'wav', 'ogg', 'html', 'htm'];
+        
+        $file_extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        
+        if (!in_array($file_extension, $allowed_extensions)) {
+            $errors[] = "Tipo de archivo no permitido. Tipos permitidos: " . implode(', ', $allowed_extensions);
+        }
+        
+        if (empty($errors)) {
+            $upload_dir = __DIR__ . '/uploads/';
+            
+            // Crear directorio si no existe
+            if (!is_dir($upload_dir)) {
+                mkdir($upload_dir, 0755, true);
+            }
+            
+            $originalname = basename($file['name']);
+            $filename = $style . '_' . time() . '_' . $originalname; // Agregar timestamp para evitar duplicados
+            $fullpath = $upload_dir . $filename;
 
-        // Verificar si ya existe en la BD para este curso, estilo Y usuario
-        $existing = $DB->get_record('learningstylesurvey_resources', [
-            'filename' => $filename,
-            'courseid' => $courseid,
-            'style' => $style,
-            'userid' => $USER->id
-        ]);
+            // Verificar si ya existe en la BD para este curso, estilo Y usuario
+            $existing = $DB->get_record('learningstylesurvey_resources', [
+                'filename' => $filename,
+                'courseid' => $courseid,
+                'style' => $style,
+                'userid' => $USER->id
+            ]);
 
-        if ($existing) {
-            // Si el archivo existe en BD con el mismo estilo, bloquear
-            $errors[] = "Ya existe un archivo con ese nombre y el mismo estilo de aprendizaje. Si deseas actualizarlo, primero elimínalo desde la lista de recursos.";
-        } else {
-            // El nombre es único por estilo, así que no bloqueamos si existe físicamente
-            if (move_uploaded_file($file['tmp_name'], $fullpath)) {
+            if ($existing) {
+                // Si el archivo existe en BD con el mismo estilo, bloquear
+                $errors[] = "Ya existe un archivo con ese nombre y el mismo estilo de aprendizaje. Si deseas actualizarlo, primero elimínalo desde la lista de recursos.";
+            } else {
+                // El nombre es único por estilo, así que no bloqueamos si existe físicamente
+                if (move_uploaded_file($file['tmp_name'], $fullpath)) {
                 $record = new stdClass();
                 $record->courseid = $courseid;
                 $record->userid = $USER->id; // Agregar ID del usuario que sube el archivo
@@ -107,6 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
     }
+    } // Cerrar el else principal
 }
 
 echo $OUTPUT->header();
@@ -158,6 +177,14 @@ if ($success) {
     <div style="margin-bottom: 15px;">
         <label for="file"><strong>Archivo:</strong></label><br>
         <input type="file" id="file" name="file" class="form-control" required>
+        <small style="color: #666; font-size: 0.9em; display: block; margin-top: 5px;">
+            📁 <strong>Tipos de archivo soportados:</strong><br>
+            • <strong>Documentos:</strong> PDF, Word (.doc, .docx), Excel (.xls, .xlsx), PowerPoint (.ppt, .pptx), Texto (.txt)<br>
+            • <strong>Imágenes:</strong> JPG, PNG, GIF, WebP, SVG<br>
+            • <strong>Videos:</strong> MP4, WebM, AVI, MOV<br>
+            • <strong>Audio:</strong> MP3, WAV, OGG<br>
+            📊 <strong>Tamaño máximo:</strong> Depende de la configuración del servidor
+        </small>
     </div>
 
     <div style="text-align: center;">

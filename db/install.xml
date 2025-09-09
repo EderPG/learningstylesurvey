@@ -240,13 +240,21 @@
         <KEY NAME="pathfk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id"/>
         <KEY NAME="stepfk" TYPE="foreign" FIELDS="current_stepid" REFTABLE="learningpath_steps" REFFIELDS="id"/>
     </KEYS>
-    <INDEXES>
-        <INDEX NAME="userpath_idx" UNIQUE="true" FIELDS="userid, pathid"/>
-    </INDEXES>
-</TABLE>
-
-
-
+<!-- <TABLE NAME="learningstylesurvey_path_temas" COMMENT="Relación entre rutas y temas">
+    <FIELDS>
+        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
+        <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="temaid" TYPE="int" LENGTH="10" NOTNULL="true"/>
+        <FIELD NAME="orden" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="isrefuerzo" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
+    </FIELDS>
+    <KEYS>
+        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
+        <KEY NAME="path_fk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id"/>
+        <KEY NAME="tema_fk" TYPE="foreign" FIELDS="temaid" REFTABLE="learningstylesurvey_temas" REFFIELDS="id"/>
+    </KEYS>
+</TABLE> -->
 
 </TABLES>
 </XMLDB>

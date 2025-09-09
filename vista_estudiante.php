@@ -9,6 +9,7 @@ $stepid = optional_param('stepid', 0, PARAM_INT);
 $tema_salto = optional_param('tema_salto', 0, PARAM_INT); // Para saltos adaptativos por tema
 $tema_refuerzo = optional_param('tema_refuerzo', 0, PARAM_INT); // Para temas de refuerzo
 $cmid = optional_param('cmid', 0, PARAM_INT);
+$completed = optional_param('completed', 0, PARAM_INT); // Para mostrar mensaje de finalización
 
 // Si no se proporciona cmid, obtenerlo del contexto actual
 if (!$cmid) {
@@ -26,19 +27,80 @@ require_login();
 function mostrar_recurso($resource) {
     global $CFG;
     $fileurl = "{$CFG->wwwroot}/mod/learningstylesurvey/uploads/{$resource->filename}";
-    $ext = pathinfo($resource->filename, PATHINFO_EXTENSION);
+    $filepath = $CFG->dirroot . "/mod/learningstylesurvey/uploads/" . $resource->filename;
+    $ext = strtolower(pathinfo($resource->filename, PATHINFO_EXTENSION));
     
     echo "<h3>" . format_string($resource->name ?: 'Recurso') . "</h3>";
     
-    if (in_array(strtolower($ext), ['jpg','jpeg','png','gif'])) {
-        echo "<img src='$fileurl' style='max-width:100%; height:auto; margin-bottom:20px;'>";
-    } elseif (strtolower($ext) === 'pdf') {
-        echo "<iframe src='$fileurl' style='width:100%; height:600px; border:none;'></iframe>";
-    } elseif (in_array(strtolower($ext), ['mp4','webm'])) {
-        echo "<video controls style='width:100%; max-height:500px;'><source src='$fileurl' type='video/$ext'>Tu navegador no soporta video HTML5.</video>";
-    } else {
-        echo "<a href='$fileurl' target='_blank'>Descargar recurso</a>";
+    // Verificar si el archivo existe físicamente
+    if (!file_exists($filepath)) {
+        echo "<div class='alert alert-danger'>❌ <strong>Archivo no encontrado:</strong> {$resource->filename}</div>";
+        echo "<p>El archivo puede haber sido movido o eliminado del servidor.</p>";
+        return;
     }
+    
+    // Mostrar según el tipo de archivo
+    if (in_array($ext, ['jpg','jpeg','png','gif','webp','svg'])) {
+        // Imágenes
+        echo "<img src='$fileurl' style='max-width:100%; height:auto; margin-bottom:20px; border: 1px solid #ddd; border-radius: 8px;'>";
+        
+    } elseif ($ext === 'pdf') {
+        // PDFs
+        echo "<iframe src='$fileurl' style='width:100%; height:600px; border:none; border-radius: 8px;'></iframe>";
+        
+    } elseif (in_array($ext, ['mp4','webm','avi','mov'])) {
+        // Videos
+        echo "<video controls style='width:100%; max-height:500px; border-radius: 8px;'>";
+        echo "<source src='$fileurl' type='video/$ext'>";
+        echo "Tu navegador no soporta video HTML5.";
+        echo "</video>";
+        
+    } elseif (in_array($ext, ['mp3','wav','ogg'])) {
+        // Audio
+        echo "<audio controls style='width:100%; margin-bottom:20px;'>";
+        echo "<source src='$fileurl' type='audio/$ext'>";
+        echo "Tu navegador no soporta audio HTML5.";
+        echo "</audio>";
+        
+    } elseif ($ext === 'txt') {
+        // Archivos de texto - mostrar contenido
+        $content = file_get_contents($filepath);
+        if ($content !== false) {
+            echo "<div style='background:#f8f9fa; padding:20px; border:1px solid #dee2e6; border-radius:8px; font-family:monospace; white-space:pre-wrap; max-height:500px; overflow-y:auto;'>";
+            echo htmlspecialchars($content, ENT_QUOTES, 'UTF-8');
+            echo "</div>";
+        } else {
+            echo "<div class='alert alert-warning'>No se pudo leer el contenido del archivo de texto.</div>";
+        }
+        
+    } elseif (in_array($ext, ['doc','docx','xls','xlsx','ppt','pptx'])) {
+        // Archivos de Microsoft Office - usar Office Online Viewer
+        $encoded_url = urlencode($fileurl);
+        echo "<iframe src='https://view.officeapps.live.com/op/embed.aspx?src={$encoded_url}' style='width:100%; height:600px; border:none; border-radius: 8px;'></iframe>";
+        echo "<p><small>📝 <strong>Nota:</strong> Si el visor no funciona, <a href='$fileurl' target='_blank'>descarga el archivo</a> para abrirlo localmente.</small></p>";
+        
+    } elseif (in_array($ext, ['html','htm'])) {
+        // Archivos HTML
+        echo "<iframe src='$fileurl' style='width:100%; height:600px; border:1px solid #ddd; border-radius: 8px;'></iframe>";
+        
+    } else {
+        // Otros tipos de archivo - enlace de descarga mejorado
+        $filesize = file_exists($filepath) ? human_filesize(filesize($filepath)) : 'Tamaño desconocido';
+        echo "<div style='background:#f8f9fa; padding:20px; border:1px solid #dee2e6; border-radius:8px; text-align:center;'>";
+        echo "<p>📁 <strong>Archivo:</strong> {$resource->filename}</p>";
+        echo "<p>📊 <strong>Tamaño:</strong> {$filesize}</p>";
+        echo "<a href='$fileurl' target='_blank' class='btn btn-primary' style='background:#007bff; color:white; padding:10px 20px; text-decoration:none; border-radius:5px;'>📥 Descargar archivo</a>";
+        echo "</div>";
+    }
+}
+
+// Función auxiliar para formatear tamaño de archivo
+function human_filesize($size, $precision = 2) {
+    $units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    for ($i = 0; $size > 1024 && $i < count($units) - 1; $i++) {
+        $size /= 1024;
+    }
+    return round($size, $precision) . ' ' . $units[$i];
 }
 $context = context_course::instance($courseid);
 $PAGE->set_context($context);
@@ -123,6 +185,22 @@ echo $OUTPUT->header();
 echo "<div class='container' style='max-width:900px; margin:20px auto;'>";
 echo "<h2>Ruta de Aprendizaje (" . ucfirst($style) . ")</h2>";
 
+// Mostrar mensaje de finalización si se completó la ruta
+if ($completed) {
+    echo "<div class='alert alert-success alert-dismissible' style='margin-bottom:30px;'>";
+    echo "<button type='button' class='close' data-dismiss='alert'>&times;</button>";
+    echo "<h4>🎉 ¡Felicitaciones!</h4>";
+    echo "<p>Has completado exitosamente la ruta de aprendizaje.</p>";
+    if ($cmid) {
+        $menuurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id'=>$cmid]);
+        echo "<a href='{$menuurl}' class='btn btn-primary'>Regresar al menú principal</a>";
+    }
+    echo "</div>";
+    echo "</div>";
+    echo $OUTPUT->footer();
+    exit;
+}
+
 // Manejar saltos adaptativos por tema
 if ($tema_salto) {
     // Mostrar recursos del tema asignado por salto
@@ -132,20 +210,82 @@ if ($tema_salto) {
         $recursos = $DB->get_records('learningstylesurvey_resources', [
             'tema' => $tema_salto,
             'style' => $style,
-            'courseid' => $courseid
+            'courseid' => $courseid,
+            'userid' => $USER->id
         ]);
         
         if ($recursos) {
             $resource = reset($recursos); // Tomar el primer recurso del tema
+            
+            // Mostrar título del tema de salto
+            echo "<div style='background:#d4edda; border-left:4px solid #28a745; padding:15px; margin-bottom:20px; border-radius:5px;'>";
+            echo "<h3 style='margin:0; color:#155724;'>🎯 " . format_string($tema->tema) . " (Tema asignado)</h3>";
+            echo "</div>";
+            
             mostrar_recurso($resource);
             
-            // Botón para continuar con la ruta normal después del tema
-            echo "<form method='POST' action='siguiente_tema.php'>
-                    <input type='hidden' name='courseid' value='{$courseid}'>
-                    <input type='hidden' name='pathid' value='{$pathid}'>
-                    <input type='hidden' name='tema_actual' value='{$tema_salto}'>
-                    <button type='submit' class='btn btn-success' style='margin-top:15px;'>Continuar con la ruta</button>
-                  </form>";
+            // Buscar el siguiente paso después de este salto en la ruta
+            $current_step = $DB->get_record_sql("
+                SELECT s.* FROM {learningpath_steps} s
+                JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
+                WHERE s.pathid = ? AND r.tema = ? AND s.istest = 0
+                ORDER BY s.stepnumber ASC LIMIT 1
+            ", [$pathid, $tema_salto]);
+            
+            if ($current_step) {
+                // Buscar el siguiente paso en la ruta después de este tema
+                $next_step = $DB->get_record_sql("
+                    SELECT s.* FROM {learningpath_steps} s
+                    JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
+                    WHERE s.pathid = ? AND r.style = ? AND s.stepnumber > ? AND s.istest = 0
+                    ORDER BY s.stepnumber ASC LIMIT 1
+                ", [$pathid, $style, $current_step->stepnumber]);
+                
+                if ($next_step) {
+                    // Actualizar progreso del usuario al siguiente paso
+                    $progress = $DB->get_record('learningstylesurvey_user_progress', [
+                        'userid' => $USER->id,
+                        'pathid' => $pathid
+                    ]);
+                    
+                    if ($progress) {
+                        $progress->current_stepid = $next_step->id;
+                        $progress->timemodified = time();
+                        $DB->update_record('learningstylesurvey_user_progress', $progress);
+                    } else {
+                        $new_progress = (object)[
+                            'userid' => $USER->id,
+                            'pathid' => $pathid,
+                            'current_stepid' => $next_step->id,
+                            'status' => 'inprogress',
+                            'timemodified' => time()
+                        ];
+                        $DB->insert_record('learningstylesurvey_user_progress', $new_progress);
+                    }
+                    
+                    // Botón para continuar al siguiente paso
+                    $nexturl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                        'courseid' => $courseid,
+                        'pathid' => $pathid,
+                        'stepid' => $next_step->id
+                    ]);
+                    echo "<div style='margin-top:20px;'>";
+                    echo "<a href='" . $nexturl->out() . "' class='btn btn-success'>Continuar con la ruta</a>";
+                    echo "</div>";
+                } else {
+                    // No hay más pasos, la ruta está completa
+                    echo "<div class='alert alert-info' style='margin-top:20px;'>¡Has completado la ruta de aprendizaje!</div>";
+                }
+            } else {
+                // Este tema no está en la ruta, regresar al flujo normal
+                $returnurl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                    'courseid' => $courseid,
+                    'pathid' => $pathid
+                ]);
+                echo "<div style='margin-top:20px;'>";
+                echo "<a href='" . $returnurl->out() . "' class='btn btn-success'>Continuar con la ruta</a>";
+                echo "</div>";
+            }
         } else {
             echo "<div class='alert alert-warning'>No hay recursos para tu estilo de aprendizaje en este tema.</div>";
         }
@@ -161,11 +301,36 @@ if ($tema_refuerzo) {
     if ($tema) {
         echo "<div class='alert alert-warning'>Necesitas refuerzo en el tema: <strong>" . format_string($tema->tema) . "</strong></div>";
         
-        // Buscar recursos de refuerzo para este tema y estilo
+        // DEBUG: Agregar información de debug
+        if ($debug_info) {
+            echo "<div class='alert alert-info'>";
+            echo "<h4>Debug - Recursos de refuerzo:</h4>";
+            echo "<p><strong>Tema refuerzo ID:</strong> {$tema_refuerzo}</p>";
+            echo "<p><strong>Estilo usuario:</strong> {$style}</p>";
+            echo "<p><strong>Curso:</strong> {$courseid}</p>";
+            
+            // Buscar TODOS los recursos de este tema sin filtro de estilo
+            $todos_recursos = $DB->get_records('learningstylesurvey_resources', [
+                'tema' => $tema_refuerzo,
+                'courseid' => $courseid
+            ]);
+            echo "<p><strong>Recursos totales para este tema:</strong> " . count($todos_recursos) . "</p>";
+            if ($todos_recursos) {
+                echo "<ul>";
+                foreach ($todos_recursos as $r) {
+                    echo "<li>ID: {$r->id}, Estilo: '{$r->style}', Usuario: {$r->userid}, Archivo: {$r->filename}</li>";
+                }
+                echo "</ul>";
+            }
+            echo "</div>";
+        }
+        
+        // Buscar recursos de refuerzo para este tema y estilo (agregar userid también)
         $recursos_refuerzo = $DB->get_records('learningstylesurvey_resources', [
             'tema' => $tema_refuerzo,
             'style' => $style,
-            'courseid' => $courseid
+            'courseid' => $courseid,
+            'userid' => $USER->id  // Agregar filtro por usuario
         ]);
         
         if ($recursos_refuerzo) {
@@ -178,6 +343,22 @@ if ($tema_refuerzo) {
             mostrar_recurso($resource);
         } else {
             echo "<div class='alert alert-info'>No hay recursos de refuerzo específicos para tu estilo. Revisa el material general del tema.</div>";
+            
+            // Buscar recursos sin filtro de estilo como fallback
+            $recursos_generales = $DB->get_records('learningstylesurvey_resources', [
+                'tema' => $tema_refuerzo,
+                'courseid' => $courseid,
+                'userid' => $USER->id
+            ]);
+            
+            if ($recursos_generales) {
+                echo "<div class='alert alert-info'>Mostrando recursos generales del tema:</div>";
+                $resource = reset($recursos_generales);
+                echo "<div style='background:#fff3cd; border-left:4px solid #ffc107; padding:15px; margin-bottom:20px; border-radius:5px;'>";
+                echo "<h3 style='margin:0; color:#856404;'>🔄 " . format_string($tema->tema) . " (Refuerzo)</h3>";
+                echo "</div>";
+                mostrar_recurso($resource);
+            }
         }
         
         // Buscar el examen que se reprobó para permitir reintento
@@ -200,7 +381,8 @@ if ($tema_refuerzo) {
                 'id' => $lastquiz->quizid,
                 'courseid' => $courseid,
                 'embedded' => 1,
-                'retry' => 1
+                'retry' => 1,
+                'cmid' => $cmid
             ]);
             echo "<a href='{$retryurl}' class='btn btn-primary btn-lg'>🔄 Reintentar examen</a>";
             echo "</div>";
@@ -222,7 +404,8 @@ if ($tema_refuerzo) {
                     'id' => $fallback_quiz->quizid,
                     'courseid' => $courseid,
                     'embedded' => 1,
-                    'retry' => 1
+                    'retry' => 1,
+                    'cmid' => $cmid
                 ]);
                 echo "<a href='{$retryurl}' class='btn btn-warning btn-lg'>🔄 Reintentar examen</a>";
                 echo "</div>";
@@ -244,7 +427,8 @@ if ($stepid) {
             $quizurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
                 'id' => $step->resourceid,
                 'courseid' => $courseid,
-                'embedded' => 1
+                'embedded' => 1,
+                'cmid' => $cmid
             ]);
             redirect($quizurl);
         } else {
@@ -264,6 +448,7 @@ if ($stepid) {
                         <input type='hidden' name='courseid' value='{$courseid}'>
                         <input type='hidden' name='pathid' value='{$pathid}'>
                         <input type='hidden' name='stepid' value='{$step->id}'>
+                        <input type='hidden' name='cmid' value='{$cmid}'>
                         <button type='submit' class='btn btn-success' style='margin-top:15px;'>Continuar</button>
                       </form>";
                 echo "</div>";
@@ -335,7 +520,8 @@ if ($show_refuerzo && $tema_refuerzo_id) {
             'id' => $lastquiz->quizid,
             'courseid' => $courseid,
             'embedded' => 1,
-            'retry' => 1
+            'retry' => 1,
+            'cmid' => $cmid
         ]);
         echo "<a href='{$retryurl}' class='btn btn-primary btn-lg'>🔄 Reintentar examen</a>";
         echo "</div>";
@@ -429,6 +615,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                     <input type='hidden' name='courseid' value='{$courseid}'>
                     <input type='hidden' name='pathid' value='{$pathid}'>
                     <input type='hidden' name='stepid' value='{$step->id}'>
+                    <input type='hidden' name='cmid' value='{$cmid}'>
                     <button type='submit' class='btn btn-success' style='margin-top:15px;'>Continuar</button>
                   </form>";
         }
@@ -437,7 +624,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
     }
 }
 
-// Buscar el primer examen programado en la ruta
+// Buscar el primer examen programado en la ruta que NO haya sido aprobado
 $quizstep = $DB->get_record_sql("
     SELECT s.*
     FROM {learningpath_steps} s
@@ -445,19 +632,31 @@ $quizstep = $DB->get_record_sql("
     ORDER BY s.stepnumber ASC
     LIMIT 1
 ", [$pathid]);
+
 if ($quizstep && $cmid) {
-    echo "<div style='margin-top:30px;'>";
-    echo "<h3>Examen programado</h3>";
-    echo html_writer::link(
-        new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
-            'id' => $quizstep->resourceid,
-            'courseid' => $courseid,
-            'embedded' => 0
-        ]),
-        'Ir al examen',
-        ['class'=>'btn btn-primary']
-    );
-    echo "</div>";
+    // Verificar si este examen ya fue aprobado
+    $quiz_result = $DB->get_record_sql("
+        SELECT qr.* FROM {learningstylesurvey_quiz_results} qr
+        WHERE qr.userid = ? AND qr.quizid = ? AND qr.score >= 70
+        ORDER BY qr.timecompleted DESC LIMIT 1
+    ", [$USER->id, $quizstep->resourceid]);
+    
+    // Solo mostrar el examen si NO ha sido aprobado
+    if (!$quiz_result) {
+        echo "<div style='margin-top:30px;'>";
+        echo "<h3>Examen programado</h3>";
+        echo html_writer::link(
+            new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+                'id' => $quizstep->resourceid,
+                'courseid' => $courseid,
+                'embedded' => 0,
+                'cmid' => $cmid
+            ]),
+            'Ir al examen',
+            ['class'=>'btn btn-primary']
+        );
+        echo "</div>";
+    }
 }
 
 // Botón regresar al menú

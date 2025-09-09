@@ -20,7 +20,9 @@ echo $OUTPUT->header();
 echo "<div class='box generalbox' style='padding: 20px; max-width: 800px; margin: 0 auto;'>";
 echo $OUTPUT->heading('Cuestionario: ' . format_string($DB->get_field('learningstylesurvey_quizzes','name',['id'=>$quizid])), 3);
 if ($embedded) {
-    $returnurl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid' => $courseid]);
+    $returnurl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+        'courseid' => $courseid
+    ]);
     echo "<div style='margin-bottom:15px;'><a href='" . $returnurl->out() . "' class='btn btn-secondary'>Regresar a la ruta</a></div>";
 }
 
@@ -186,18 +188,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ", [$quizid]);
         
         if ($step && $step->passredirect) {
-            // El salto apunta a un tema ID, buscar el primer recurso de ese tema
-            $target_resource = $DB->get_record_sql("
-                SELECT r.* FROM {learningstylesurvey_resources} r 
-                WHERE r.tema = ? 
-                ORDER BY r.id ASC LIMIT 1
-            ", [$step->passredirect]);
+            // El salto apunta a un ID de recurso, no de tema
+            $target_resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->passredirect]);
             
             if ($target_resource) {
                 $nexturl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
                     'courseid' => $courseid,
                     'pathid' => $step->pathid,
-                    'tema_salto' => $step->passredirect
+                    'tema_salto' => $target_resource->tema  // Pasar el ID del tema del recurso
                 ]);
                 echo "<div style='margin-top:20px;'><a class='btn btn-success' href='" . $nexturl->out() . "'>Continuar al tema asignado</a></div>";
             }
@@ -241,13 +239,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo "<a href='{$retryurl}' class='btn btn-primary'>🔄 Reintentar ahora</a> ";
         
         if ($step && $step->failredirect) {
-            // El salto apunta a un tema ID de refuerzo
-            $refuerzourl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
-                'courseid' => $courseid,
-                'pathid' => $step->pathid,
-                'tema_refuerzo' => $step->failredirect
-            ]);
-            echo "<a class='btn btn-warning' href='" . $refuerzourl->out() . "'>📚 Estudiar material de refuerzo</a> ";
+            // El salto de fallo apunta a un ID de recurso, obtener el tema del recurso
+            $target_resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->failredirect]);
+            
+            if ($target_resource) {
+                $refuerzourl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                    'courseid' => $courseid,
+                    'pathid' => $step->pathid,
+                    'tema_refuerzo' => $target_resource->tema  // Pasar el ID del tema del recurso
+                ]);
+                echo "<a class='btn btn-warning' href='" . $refuerzourl->out() . "'>📚 Estudiar material de refuerzo</a> ";
+            }
         }
         
         echo "</div>";
@@ -255,7 +257,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // Agregar botón volver en todos los casos
-    $returnurl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid' => $courseid]);
+    $returnurl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+        'courseid' => $courseid
+    ]);
     echo "<div style='margin-top:15px;'>";
     echo "<a href='" . $returnurl->out() . "' class='btn btn-secondary'>Volver</a>";
     echo "</div>";
@@ -290,12 +294,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ", [$quizid]);
         
         if ($step && $step->failredirect) {
-            $refuerzourl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
-                'courseid' => $courseid,
-                'pathid' => $step->pathid,
-                'tema_refuerzo' => $step->failredirect
-            ]);
-            echo "<a href='{$refuerzourl}' class='btn btn-warning'>📚 Ver material de refuerzo</a>";
+            // El salto de fallo apunta a un ID de recurso, obtener el tema del recurso
+            $target_resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->failredirect]);
+            
+            if ($target_resource) {
+                $refuerzourl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                    'courseid' => $courseid,
+                    'pathid' => $step->pathid,
+                    'tema_refuerzo' => $target_resource->tema  // Pasar el ID del tema del recurso
+                ]);
+                echo "<a href='{$refuerzourl}' class='btn btn-warning'>📚 Ver material de refuerzo</a>";
+            }
         }
         
         if ($quiz = $DB->get_record('learningstylesurvey_quizzes',['id'=>$quizid]) && $quiz->recoveryquizid) {
@@ -310,7 +319,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (!$embedded) {
-        $volver_url = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid' => $courseid]);
+        $volver_url = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+            'courseid' => $courseid
+        ]);
         echo "<div style='margin-top:15px;'><a href='" . $volver_url->out() . "' class='btn btn-secondary'>Volver</a></div>";
     }
     echo "</div>";

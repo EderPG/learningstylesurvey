@@ -3,8 +3,9 @@ require_once('../../config.php');
 require_login();
 
 $courseid = required_param('courseid', PARAM_INT);
+$cmid = optional_param('cmid', 0, PARAM_INT); // Para aislamiento por instancia
 $context = context_course::instance($courseid);
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/delete_learningpath.php', array('courseid' => $courseid)));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/delete_learningpath.php', array('courseid' => $courseid, 'cmid' => $cmid)));
 $PAGE->set_context($context);
 $PAGE->set_title("Eliminar Ruta de Aprendizaje");
 $PAGE->set_heading("Eliminar Ruta de Aprendizaje");
@@ -26,7 +27,10 @@ if (optional_param('confirm', 0, PARAM_BOOL)) {
     $DB->delete_records('learningstylesurvey_path_evaluations', ['pathid' => $idruta]);
     $DB->delete_records('learningstylesurvey_paths', ['id' => $idruta]);
 
-    redirect(new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid]), "Ruta eliminada correctamente. Ahora puedes crear una nueva ruta.", 3);
+    redirect(new moodle_url('/mod/learningstylesurvey/learningpath.php', [
+        'courseid' => $courseid, 
+        'cmid' => $cmid
+    ]), "Ruta eliminada correctamente. Ahora puedes crear una nueva ruta.", 3);
     exit;
 }
 
@@ -38,7 +42,12 @@ if (!$records) {
 } else {
     echo "<ul>";
     foreach ($records as $ruta) {
-        $deleteurl = new moodle_url('/mod/learningstylesurvey/delete_learningpath.php', ['courseid' => $courseid, 'delete' => $ruta->id, 'confirm' => 1]);
+        $deleteurl = new moodle_url('/mod/learningstylesurvey/delete_learningpath.php', [
+            'courseid' => $courseid, 
+            'delete' => $ruta->id, 
+            'confirm' => 1, 
+            'cmid' => $cmid
+        ]);
         echo "<li><strong>{$ruta->name}</strong>";
 
         // Archivos
@@ -67,7 +76,7 @@ if (!$records) {
 }
 
 // Botón de regreso
-$urlreturn = new moodle_url('/mod/learningstylesurvey/learningpath.php', array('courseid' => $courseid));
+$urlreturn = new moodle_url('/mod/learningstylesurvey/learningpath.php', array('courseid' => $courseid, 'cmid' => $cmid));
 echo "<a href='{$urlreturn}' class='btn btn-secondary'>Regresar</a>";
 
 // Modal para confirmación personalizada
