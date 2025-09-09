@@ -1,5 +1,6 @@
 <?php
-require_once("../../config.php");
+require_once("../../../config.php");
+require_once("../../../mod/learningstylesurvey/lib.php");
 require_login();
 
 $courseid = required_param("courseid", PARAM_INT);
@@ -7,7 +8,7 @@ $cmid = optional_param("cmid", 0, PARAM_INT); // ID de la instancia específica
 
 $context = context_course::instance($courseid);
 $PAGE->set_context($context);
-$PAGE->set_url("/mod/learningstylesurvey/uploadresource.php", ["courseid" => $courseid, "cmid" => $cmid]);
+$PAGE->set_url("/mod/learningstylesurvey/resource/uploadresource.php", ["courseid" => $courseid, "cmid" => $cmid]);
 $PAGE->set_title("Subir recurso adaptativo");
 $PAGE->set_heading("Subir recurso adaptativo");
 
@@ -47,12 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         if (empty($errors)) {
-            $upload_dir = __DIR__ . '/uploads/';
+            // Asegurar que el directorio existe y obtener la ruta
+            $upload_dir = learningstylesurvey_ensure_upload_directory($courseid);
             
-            // Crear directorio si no existe
-            if (!is_dir($upload_dir)) {
-                mkdir($upload_dir, 0755, true);
-            }
+            // Migrar archivos existentes si es necesario
+            learningstylesurvey_migrate_files($courseid);
             
             $originalname = basename($file['name']);
             $filename = $style . '_' . time() . '_' . $originalname; // Agregar timestamp para evitar duplicados

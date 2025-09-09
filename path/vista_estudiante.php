@@ -1,5 +1,5 @@
 <?php
-require_once("../../config.php");
+require_once("../../../config.php");
 require_once("$CFG->libdir/formslib.php");
 global $DB, $USER, $PAGE, $OUTPUT;
 
@@ -25,9 +25,13 @@ require_login();
 
 // Función para mostrar un recurso
 function mostrar_recurso($resource) {
-    global $CFG;
-    $fileurl = "{$CFG->wwwroot}/mod/learningstylesurvey/uploads/{$resource->filename}";
-    $filepath = $CFG->dirroot . "/mod/learningstylesurvey/uploads/" . $resource->filename;
+    global $CFG, $COURSE;
+    $fileurl = new moodle_url('/mod/learningstylesurvey/resource/ver_recurso.php', [
+        'filename' => $resource->filename,
+        'courseid' => $resource->courseid,
+        'serve' => 1
+    ]);
+    $filepath = $CFG->dataroot . "/learningstylesurvey/" . $resource->courseid . "/" . $resource->filename;
     $ext = strtolower(pathinfo($resource->filename, PATHINFO_EXTENSION));
     
     echo "<h3>" . format_string($resource->name ?: 'Recurso') . "</h3>";
@@ -104,7 +108,7 @@ function human_filesize($size, $precision = 2) {
 }
 $context = context_course::instance($courseid);
 $PAGE->set_context($context);
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid'=>$courseid,'pathid'=>$pathid]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', ['courseid'=>$courseid,'pathid'=>$pathid]));
 $PAGE->set_title("Ruta de Aprendizaje");
 $PAGE->set_heading("Ruta de Aprendizaje");
 
@@ -210,8 +214,7 @@ if ($tema_salto) {
         $recursos = $DB->get_records('learningstylesurvey_resources', [
             'tema' => $tema_salto,
             'style' => $style,
-            'courseid' => $courseid,
-            'userid' => $USER->id
+            'courseid' => $courseid
         ]);
         
         if ($recursos) {
@@ -264,7 +267,7 @@ if ($tema_salto) {
                     }
                     
                     // Botón para continuar al siguiente paso
-                    $nexturl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                    $nexturl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
                         'courseid' => $courseid,
                         'pathid' => $pathid,
                         'stepid' => $next_step->id
@@ -285,7 +288,7 @@ if ($tema_salto) {
                 }
             } else {
                 // Este tema no está en la ruta, regresar al flujo normal
-                $returnurl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                $returnurl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
                     'courseid' => $courseid,
                     'pathid' => $pathid
                 ]);
@@ -332,12 +335,11 @@ if ($tema_refuerzo) {
             echo "</div>";
         }
         
-        // Buscar recursos de refuerzo para este tema y estilo (agregar userid también)
+        // Buscar recursos de refuerzo para este tema y estilo
         $recursos_refuerzo = $DB->get_records('learningstylesurvey_resources', [
             'tema' => $tema_refuerzo,
             'style' => $style,
-            'courseid' => $courseid,
-            'userid' => $USER->id  // Agregar filtro por usuario
+            'courseid' => $courseid
         ]);
         
         if ($recursos_refuerzo) {
@@ -354,8 +356,7 @@ if ($tema_refuerzo) {
             // Buscar recursos sin filtro de estilo como fallback
             $recursos_generales = $DB->get_records('learningstylesurvey_resources', [
                 'tema' => $tema_refuerzo,
-                'courseid' => $courseid,
-                'userid' => $USER->id
+                'courseid' => $courseid
             ]);
             
             if ($recursos_generales) {
@@ -384,7 +385,7 @@ if ($tema_refuerzo) {
             echo "<div style='margin-top:30px; padding: 15px; background: #e7f3ff; border-left: 4px solid #007bff; border-radius: 5px;'>";
             echo "<h4 style='margin-top: 0;'>💡 ¿Listo para el reintento?</h4>";
             echo "<p>Después de estudiar el material de refuerzo, puedes volver a intentar el examen.</p>";
-            $retryurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+            $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                 'id' => $lastquiz->quizid,
                 'courseid' => $courseid,
                 'embedded' => 1,
@@ -407,7 +408,7 @@ if ($tema_refuerzo) {
                 echo "<div style='margin-top:30px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 5px;'>";
                 echo "<h4 style='margin-top: 0;'>📝 Reintento disponible</h4>";
                 echo "<p>Tienes un examen reprobado que puedes volver a intentar: <strong>" . format_string($fallback_quiz->quiz_name) . "</strong></p>";
-                $retryurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+                $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                     'id' => $fallback_quiz->quizid,
                     'courseid' => $courseid,
                     'embedded' => 1,
@@ -431,7 +432,7 @@ if ($stepid) {
     if ($step) {
         if ($step->istest) {
             // Si es un examen, redirigir a responder_quiz.php
-            $quizurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+            $quizurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                 'id' => $step->resourceid,
                 'courseid' => $courseid,
                 'embedded' => 1,
@@ -523,7 +524,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         echo "<div style='margin-top:30px; padding: 15px; background: #e7f3ff; border-left: 4px solid #007bff; border-radius: 5px;'>";
         echo "<h4 style='margin-top: 0;'>💡 ¿Listo para el reintento?</h4>";
         echo "<p>Después de estudiar el material de refuerzo, puedes volver a intentar el examen.</p>";
-        $retryurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+        $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
             'id' => $lastquiz->quizid,
             'courseid' => $courseid,
             'embedded' => 1,
@@ -725,7 +726,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                 } else {
                     // Mostrar el examen
                     echo "<div class='alert alert-info'>Tienes un examen pendiente: <strong>" . format_string($quiz->name) . "</strong></div>";
-                    $quizurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+                    $quizurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                         'id' => $quiz->id,
                         'courseid' => $courseid,
                         'embedded' => 1,
@@ -874,7 +875,7 @@ if ($quizstep && $cmid) {
         echo "<div style='margin-top:30px;'>";
         echo "<h3>Examen programado</h3>";
         echo html_writer::link(
-            new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+            new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                 'id' => $quizstep->resourceid,
                 'courseid' => $courseid,
                 'embedded' => 0,

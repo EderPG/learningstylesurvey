@@ -1,5 +1,5 @@
 <?php
-require('../../config.php');
+require('../../../config.php');
 
 $courseid = required_param('courseid', PARAM_INT);
 $cmid = optional_param('cmid', 0, PARAM_INT); // ID de la instancia específica
@@ -10,7 +10,7 @@ $context = context_course::instance($course->id);
 require_capability('moodle/course:update', $context);
 
 $PAGE->set_context($context);
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/temas.php', ['courseid' => $courseid, 'cmid' => $cmid]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/resource/temas.php', ['courseid' => $courseid, 'cmid' => $cmid]));
 $PAGE->set_title('Temas del curso');
 $PAGE->set_heading($course->fullname);
 

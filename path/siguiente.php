@@ -1,5 +1,5 @@
 <?php
-require_once("../../config.php");
+require_once("../../../config.php");
 global $DB, $USER;
 
 require_login();
@@ -22,7 +22,7 @@ if (!$current) {
     }
     
     if ($firststep) {
-        redirect(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+        redirect(new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
             'courseid' => $courseid,
             'pathid' => $firststep->pathid,
             'cmid' => $cmid
@@ -88,7 +88,7 @@ if ($nextstep) {
     
     // Redirigir al siguiente paso específico si es un recurso
     if (!$nextstep->istest) {
-        redirect(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+        redirect(new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
             'courseid' => $courseid,
             'pathid' => $pathid,
             'stepid' => $nextstep->id,
@@ -96,7 +96,7 @@ if ($nextstep) {
         ]));
     } else {
         // Si es un examen, redirigir sin stepid para que maneje la lógica de examen
-        redirect(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+        redirect(new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
             'courseid' => $courseid,
             'pathid' => $pathid,
             'cmid' => $cmid
@@ -109,7 +109,7 @@ if ($nextstep) {
     $DB->update_record('learningstylesurvey_user_progress', $progress);
     
     // Redirigir mostrando mensaje de finalización
-    redirect(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+    redirect(new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
         'courseid' => $courseid,
         'pathid' => $pathid,
         'completed' => 1,

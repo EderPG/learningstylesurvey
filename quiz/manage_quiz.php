@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 require_login();
 
 $courseid = required_param('courseid', PARAM_INT);
@@ -9,7 +9,7 @@ $action = optional_param('action', '', PARAM_ALPHA);
 
 $context = context_course::instance($courseid);
 $PAGE->set_context($context);
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/manage_quiz.php', ['courseid' => $courseid, 'cmid' => $cmid]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/quiz/manage_quiz.php', ['courseid' => $courseid, 'cmid' => $cmid]));
 $PAGE->set_title('Gestionar Examen');
 $PAGE->set_heading('Gestionar Examen');
 
@@ -43,7 +43,7 @@ if ($action === 'delete' && $quizid) {
     $DB->delete_records('learningstylesurvey_questions', ['quizid' => $quizid]);
     $DB->delete_records('learningstylesurvey_quiz_results', ['quizid' => $quizid]);
     $DB->delete_records('learningstylesurvey_quizzes', ['id' => $quizid]);
-    redirect(new moodle_url('/mod/learningstylesurvey/manage_quiz.php', ['courseid' => $courseid]), 'Examen eliminado correctamente.', 1);
+    redirect(new moodle_url('/mod/learningstylesurvey/quiz/manage_quiz.php', ['courseid' => $courseid]), 'Examen eliminado correctamente.', 1);
 }
 
 // Editar examen
@@ -110,7 +110,7 @@ if ($action === 'edit' && $quizid) {
                 }
             }
         }
-        redirect(new moodle_url('/mod/learningstylesurvey/manage_quiz.php', ['courseid' => $courseid]), 'Examen editado correctamente.', 1);
+        redirect(new moodle_url('/mod/learningstylesurvey/quiz/manage_quiz.php', ['courseid' => $courseid]), 'Examen editado correctamente.', 1);
     }
 
     // Mostrar formulario de edición

@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 global $DB, $USER, $OUTPUT;
 
 $courseid = required_param('courseid', PARAM_INT);
@@ -7,7 +7,7 @@ $quizid = optional_param('quizid', 0, PARAM_INT);
 $action = optional_param('action', '', PARAM_TEXT);
 
 require_login($courseid);
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/debug_retry.php', ['courseid' => $courseid]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/debug/debug_retry.php', ['courseid' => $courseid]));
 $PAGE->set_context(context_course::instance($courseid));
 $PAGE->set_title('Debug Reintentos');
 $PAGE->set_heading('Debug Reintentos');
@@ -49,7 +49,7 @@ if ($results) {
         echo "<td>$date</td>";
         echo "<td>";
         echo "<a href='?courseid=$courseid&quizid={$result->quizid}&action=clear' class='btn btn-danger btn-sm'>Limpiar resultado</a> ";
-        echo "<a href='responder_quiz.php?id={$result->quizid}&courseid=$courseid&embedded=1&retry=1' class='btn btn-primary btn-sm'>Reintentar</a>";
+        echo "<a href='../quiz/responder_quiz.php?id={$result->quizid}&courseid=$courseid&embedded=1&retry=1' class='btn btn-primary btn-sm'>Reintentar</a>";
         echo "</td>";
         echo "</tr>";
     }
@@ -88,7 +88,7 @@ if ($steps) {
 }
 
 echo "<div style='margin-top: 30px;'>";
-echo "<a href='vista_estudiante.php?courseid=$courseid' class='btn btn-secondary'>Volver a la ruta</a>";
+echo "<a href='../path/vista_estudiante.php?courseid=$courseid' class='btn btn-secondary'>Volver a la ruta</a>";
 echo "</div>";
 
 echo "</div>";

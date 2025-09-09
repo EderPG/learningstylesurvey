@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 require_login();
 
 global $DB, $USER;
@@ -7,8 +7,8 @@ global $DB, $USER;
 $courseid = required_param('courseid', PARAM_INT);
 $cmid = required_param('cmid', PARAM_INT); // Obtener el Course Module ID para identificar la instancia
 $context = context_course::instance($courseid);
-$baseurl = new moodle_url('/mod/learningstylesurvey/edit_learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
-$returnurl = new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
+$baseurl = new moodle_url('/mod/learningstylesurvey/path/edit_learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
+$returnurl = new moodle_url('/mod/learningstylesurvey/path/learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
 
 $PAGE->set_url($baseurl);
 $PAGE->set_context($context);

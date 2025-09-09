@@ -1,6 +1,6 @@
 
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 require_login();
 
 $nombre = required_param('nombre', PARAM_TEXT);

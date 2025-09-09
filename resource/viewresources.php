@@ -1,5 +1,5 @@
 <?php
-require_once("../../config.php");
+require_once("../../../config.php");
 
 $courseid = required_param("courseid", PARAM_INT);
 $cmid = optional_param("cmid", 0, PARAM_INT); // ID de la instancia específica
@@ -7,7 +7,7 @@ require_login($courseid);
 
 $context = context_course::instance($courseid);
 $PAGE->set_context($context);
-$PAGE->set_url("/mod/learningstylesurvey/viewresources.php", ["courseid" => $courseid, "cmid" => $cmid]);
+$PAGE->set_url("/mod/learningstylesurvey/resource/viewresources.php", ["courseid" => $courseid, "cmid" => $cmid]);
 $PAGE->set_title("Material adaptativo");
 $PAGE->set_heading("Material adaptativo subido");
 
@@ -25,7 +25,7 @@ $deleteid = optional_param('deleteid', 0, PARAM_INT);
 if ($deleteid > 0) {
     $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $deleteid, 'courseid' => $courseid]);
     if ($resource) {
-        $filepath = __DIR__ . '/uploads/' . $resource->filename;
+        $filepath = $CFG->dataroot . '/learningstylesurvey/' . $courseid . '/' . $resource->filename;
 
         // Eliminar archivo físico
         if (is_file($filepath)) {
@@ -64,12 +64,20 @@ if ($selected_tema) {
     ", [$courseid, $USER->id]);
 }
 
-// Limpiar registros huérfanos (archivo no existe físicamente)
-foreach ($resources as $res) {
-    $filepath = __DIR__ . '/uploads/' . $res->filename;
-    if (!is_file($filepath)) {
-        $DB->delete_records('learningstylesurvey_resources', ['id' => $res->id]);
-        unset($resources[$res->id]); // Eliminar del array actual
+// Limpiar registros huérfanos (archivo no existe físicamente) con mejor manejo de errores
+foreach ($resources as $key => $res) {
+    $filepath = $CFG->dataroot . '/learningstylesurvey/' . $courseid . '/' . $res->filename;
+    if (!file_exists($filepath)) {
+        // Intentar eliminar el registro huérfano
+        try {
+            $DB->delete_records('learningstylesurvey_resources', ['id' => $res->id]);
+            $DB->delete_records('learningstylesurvey_inforoute', ['filename' => $res->filename, 'courseid' => $courseid]);
+            $DB->delete_records('learningpath_steps', ['resourceid' => $res->id, 'istest' => 0]);
+            unset($resources[$key]);
+        } catch (Exception $e) {
+            // Log del error pero continuar
+            error_log("Error eliminando registro huérfano: " . $e->getMessage());
+        }
     }
 }
 
@@ -137,13 +145,22 @@ echo '</form>';
         $panelId = 'panel_tema_' . $panelIdx;
         echo "<div style='border:1px solid #eee; border-radius:6px; background:#fff; margin-bottom:10px;'>";
         echo "<button class='btn btn-block' style='width:100%; text-align:left; padding:10px; font-weight:bold; background:#f5f5f5; border:none; border-radius:6px 6px 0 0;' onclick=\"togglePanel('$panelId')\">" . htmlspecialchars($tema['nombretema']) . "</button>";
-        echo "<div id='$panelId' style='display:none; padding:15px;'>";
+    echo "<div id='$panelId' style='display:none; padding:15px;'>";
         echo "<ul style='list-style:none; padding:0;'>";
         foreach ($tema['archivos'] as $idx => $resource) {
             $filename = $resource->filename;
             $name = format_string($resource->name);
-            $fileurl = "{$CFG->wwwroot}/mod/learningstylesurvey/uploads/{$filename}";
-            $deleteurl = new moodle_url("/mod/learningstylesurvey/viewresources.php", [
+            
+            // Verificar que el archivo existe antes de mostrar el enlace
+            $filepath = $CFG->dataroot . '/learningstylesurvey/' . $courseid . '/' . $filename;
+            $fileExists = file_exists($filepath);
+            
+            $fileurl = new moodle_url('/mod/learningstylesurvey/resource/ver_recurso.php', [
+                'filename' => $filename,
+                'courseid' => $courseid,
+                'serve' => 1
+            ]);
+            $deleteurl = new moodle_url("/mod/learningstylesurvey/resource/viewresources.php", [
                 'deleteid' => $resource->id,
                 'courseid' => $courseid
             ]);
@@ -155,13 +172,22 @@ echo '</form>';
             if (!empty($resource->style)) {
                 echo "<span style='margin-left:10px; color:#888;'>Estilo: " . format_string($resource->style) . "</span>";
             }
+            if (!$fileExists) {
+                echo "<span style='margin-left:10px; color:#d9534f; font-weight:bold;'>⚠️ Archivo no encontrado</span>";
+            }
             echo "</div>";
             echo "<div>";
-            echo "<button class='btn btn-link' onclick=\"viewResource('$fileurl', '" . pathinfo($filename, PATHINFO_EXTENSION) . "', '$viewerId')\">Ver recurso</button>";
+            if ($fileExists) {
+                echo "<button class='btn btn-link' onclick=\"viewResource('$fileurl', '" . pathinfo($filename, PATHINFO_EXTENSION) . "', '$viewerId')\">Ver recurso</button>";
+            } else {
+                echo "<span style='color:#999;'>Archivo no disponible</span>";
+            }
             echo "<a href='{$deleteurl}' class='btn btn-danger' style='margin-left:10px;' onclick=\"return confirm('¿Seguro que deseas eliminar este recurso?')\">Eliminar</a>";
             echo "</div>";
             echo "</div>";
-            echo "<div id='$viewerId'></div>";
+            if ($fileExists) {
+                echo "<div id='$viewerId'></div>";
+            }
             echo "</li>";
         }
         echo "</ul>";
@@ -202,18 +228,44 @@ function viewResource(fileUrl, fileType, viewerId) {
     } else {
         let content = '';
         fileType = fileType.toLowerCase();
-        if (['jpg', 'jpeg', 'png', 'gif'].includes(fileType)) {
-            content = `<img src="${fileUrl}" style="max-width:100%; height:auto;">`;
+        
+        // Para todos los tipos de archivo, mostrar un enlace de descarga como opción principal
+        content = `<div style="margin-bottom: 10px;">
+                      <a href="${fileUrl}" target="_blank" class="btn btn-primary">Abrir/Descargar archivo</a>
+                   </div>`;
+        
+        // Para tipos específicos, intentar mostrar preview
+        if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(fileType)) {
+            content += `<img src="${fileUrl}" style="max-width:100%; height:auto; border:1px solid #ddd; padding:5px;" 
+                           onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">`;
+            content += `<div style="display:none; color:red; padding:10px; background:#ffe6e6; border:1px solid #ffcccc; border-radius:4px;">
+                           Error al cargar la imagen. <a href="${fileUrl}" target="_blank">Haz clic aquí para abrirla directamente</a>
+                        </div>`;
         } else if (fileType === 'pdf') {
-            content = `<iframe src="${fileUrl}" style="width:100%; height:600px; border:none;"></iframe>`;
-        } else if (['mp4', 'webm'].includes(fileType)) {
-            content = `<video controls style="width:100%; max-height:500px;">
-                          <source src="${fileUrl}" type="video/${fileType}">
-                       Tu navegador no soporta video HTML5.
-                       </video>`;
-        } else {
-            content = `<a href="${fileUrl}" target="_blank">Descargar recurso</a>`;
+            content += `<iframe src="${fileUrl}" style="width:100%; height:600px; border:1px solid #ddd;" 
+                           onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"></iframe>`;
+            content += `<div style="display:none; color:red; padding:10px; background:#ffe6e6; border:1px solid #ffcccc; border-radius:4px;">
+                           Error al cargar el PDF. <a href="${fileUrl}" target="_blank">Haz clic aquí para abrirlo directamente</a>
+                        </div>`;
+        } else if (['mp4', 'webm', 'avi', 'mov'].includes(fileType)) {
+            content += `<video controls style="width:100%; max-height:500px; border:1px solid #ddd;">
+                          <source src="${fileUrl}" type="video/${fileType === 'mov' ? 'quicktime' : fileType}">
+                          Tu navegador no soporta este formato de video.
+                        </video>`;
+        } else if (['mp3', 'wav', 'ogg'].includes(fileType)) {
+            content += `<audio controls style="width:100%;">
+                          <source src="${fileUrl}" type="audio/${fileType}">
+                          Tu navegador no soporta este formato de audio.
+                        </audio>`;
+        } else if (fileType === 'txt') {
+            content += `<iframe src="${fileUrl}" style="width:100%; height:400px; border:1px solid #ddd;" 
+                           onerror="this.style.display='none'; this.nextElementSibling.style.display='block';"></iframe>`;
+            content += `<div style="display:none; color:red; padding:10px; background:#ffe6e6; border:1px solid #ffcccc; border-radius:4px;">
+                           Error al cargar el archivo de texto. <a href="${fileUrl}" target="_blank">Haz clic aquí para abrirlo directamente</a>
+                        </div>`;
         }
+        // Para otros tipos de archivo, solo mostrar el enlace de descarga (ya incluido arriba)
+        
         viewer.innerHTML = content;
         viewer.style.display = 'block';
     }

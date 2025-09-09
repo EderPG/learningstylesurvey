@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 global $DB, $USER, $OUTPUT;
 
 // Detectar si se carga embebido
@@ -11,7 +11,7 @@ $courseid = required_param('courseid', PARAM_INT);
 $userid   = $USER->id;
 
 require_login($courseid);
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/responder_quiz.php', ['id' => $quizid, 'courseid' => $courseid, 'embedded' => $embedded ? 1 : 0]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', ['id' => $quizid, 'courseid' => $courseid, 'embedded' => $embedded ? 1 : 0]));
 $PAGE->set_context(context_course::instance($courseid));
 $PAGE->set_title('Responder Cuestionario');
 $PAGE->set_heading('Responder Cuestionario');
@@ -20,7 +20,7 @@ echo $OUTPUT->header();
 echo "<div class='box generalbox' style='padding: 20px; max-width: 800px; margin: 0 auto;'>";
 echo $OUTPUT->heading('Cuestionario: ' . format_string($DB->get_field('learningstylesurvey_quizzes','name',['id'=>$quizid])), 3);
 if ($embedded) {
-    $returnurl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+    $returnurl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
         'courseid' => $courseid
     ]);
     echo "<div style='margin-bottom:15px;'><a href='" . $returnurl->out() . "' class='btn btn-secondary'>Regresar a la ruta</a></div>";
@@ -192,7 +192,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $target_resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->passredirect]);
             
             if ($target_resource) {
-                $nexturl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                $nexturl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
                     'courseid' => $courseid,
                     'pathid' => $step->pathid,
                     'tema_salto' => $target_resource->tema  // Pasar el ID del tema del recurso
@@ -209,7 +209,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     [$step->pathid, $step->stepnumber]
                 );
                 if ($nextstep) {
-                    $nexturl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                    $nexturl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
                         'courseid' => $courseid,
                         'pathid' => $step->pathid,
                         'stepid' => $nextstep->id
@@ -230,7 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo "<h4>💪 Opciones para mejorar:</h4>";
         
         // Botón de reintento inmediato
-        $retryurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+        $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
             'id' => $quizid,
             'courseid' => $courseid,
             'embedded' => $embedded ? 1 : 0,
@@ -243,7 +243,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $target_resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->failredirect]);
             
             if ($target_resource) {
-                $refuerzourl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                $refuerzourl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
                     'courseid' => $courseid,
                     'pathid' => $step->pathid,
                     'tema_refuerzo' => $target_resource->tema  // Pasar el ID del tema del recurso
@@ -257,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     // Agregar botón volver en todos los casos
-    $returnurl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+    $returnurl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
         'courseid' => $courseid
     ]);
     echo "<div style='margin-top:15px;'>";
@@ -278,7 +278,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo "<div style='margin-top:20px; padding:15px; background:#fff3cd; border-radius:5px;'>";
         echo "<h4>💡 Opciones para mejorar:</h4>";
         
-        $retryurl = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+        $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
             'id' => $quizid,
             'courseid' => $courseid,
             'embedded' => $embedded ? 1 : 0,
@@ -298,7 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $target_resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->failredirect]);
             
             if ($target_resource) {
-                $refuerzourl = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+                $refuerzourl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
                     'courseid' => $courseid,
                     'pathid' => $step->pathid,
                     'tema_refuerzo' => $target_resource->tema  // Pasar el ID del tema del recurso
@@ -308,7 +308,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         if ($quiz = $DB->get_record('learningstylesurvey_quizzes',['id'=>$quizid]) && $quiz->recoveryquizid) {
-            $url = new moodle_url('/mod/learningstylesurvey/responder_quiz.php', [
+            $url = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                 'id' => $quiz->recoveryquizid,
                 'courseid' => $courseid,
                 'embedded' => $embedded ? 1 : 0
@@ -319,7 +319,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     
     if (!$embedded) {
-        $volver_url = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+        $volver_url = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
             'courseid' => $courseid
         ]);
         echo "<div style='margin-top:15px;'><a href='" . $volver_url->out() . "' class='btn btn-secondary'>Volver</a></div>";
