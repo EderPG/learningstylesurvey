@@ -5,7 +5,7 @@ A través de encuestas y análisis de respuestas, el sistema asigna materiales y
 
 **Características principales:**
 - Detección automática del estilo de aprendizaje del estudiante.
-- Generación de rutas de aprendizaje adaptativas con recursos y evaluaciones.
+- Creación de rutas de aprendizaje adaptativas con recursos y evaluaciones.
 - Visualización del progreso individual y recomendaciones personalizadas.
 - Gestión de temas, recursos y evaluaciones por parte del docente.
 - Interfaz intuitiva para estudiantes y profesores.
