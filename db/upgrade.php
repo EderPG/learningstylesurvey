@@ -7,11 +7,12 @@ function xmldb_learningstylesurvey_upgrade($oldversion) {
 
     $dbman = $DB->get_manager();
 
-    // Versión 2025070401 - Tablas básicas de archivos y evaluaciones
+    // 2025070401: Se elimina creación de tablas path_files y path_evaluations (ahora están en install.xml).
+    // Conservado para instalaciones antiguas que pudieran no tenerlas.
     if ($oldversion < 2025070401) {
-        // Tabla de archivos por ruta.
         $table1 = new xmldb_table('learningstylesurvey_path_files');
         if (!$dbman->table_exists($table1)) {
+            // Esta rama solo ejecutará en sitios muy antiguos sin la tabla.
             $table1->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
             $table1->add_field('pathid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
             $table1->add_field('filename', XMLDB_TYPE_CHAR, '255', null, XMLDB_NOTNULL, null, null);
@@ -21,7 +22,6 @@ function xmldb_learningstylesurvey_upgrade($oldversion) {
             $dbman->create_table($table1);
         }
 
-        // Tabla de evaluaciones por ruta.
         $table2 = new xmldb_table('learningstylesurvey_path_evaluations');
         if (!$dbman->table_exists($table2)) {
             $table2->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
@@ -100,6 +100,7 @@ function xmldb_learningstylesurvey_upgrade($oldversion) {
 
         upgrade_mod_savepoint(true, 2025090401, 'learningstylesurvey');
     }
+
 
     return true;
 }

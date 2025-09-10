@@ -1,6 +1,6 @@
-<XMLDB PATH="mod/learningstylesurvey/db" VERSION="2025060101" COMMENT="Instalaci&#243;n completa de learningstylesurvey">
+<XMLDB PATH="mod/learningstylesurvey/db" VERSION="2025091000" COMMENT="Instalación completa de learningstylesurvey">
     <TABLES>
-<TABLE NAME="learningstylesurvey" COMMENT="Instancia principal del m&#243;dulo">
+        <TABLE NAME="learningstylesurvey" COMMENT="Instancia principal del módulo">
             <FIELDS>
                 <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
                 <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" />
@@ -8,36 +8,36 @@
                 <FIELD NAME="introformat" TYPE="int" LENGTH="4" NOTNULL="true" DEFAULT="1" />
                 <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
                 <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" />
-  </FIELDS>
+            </FIELDS>
             <KEYS>
                 <KEY NAME="primary" TYPE="primary" FIELDS="id" />
             </KEYS>
         </TABLE>
 
-<TABLE NAME="learningstylesurvey_results" COMMENT="Estilo m&#225;s fuerte del alumno">
+        <TABLE NAME="learningstylesurvey_results" COMMENT="Estilo más fuerte del alumno">
             <FIELDS>
                 <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
                 <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" />
                 <FIELD NAME="strongeststyle" TYPE="char" LENGTH="50" NOTNULL="true" />
-  </FIELDS>
+            </FIELDS>
             <KEYS>
                 <KEY NAME="primary" TYPE="primary" FIELDS="id" />
             </KEYS>
         </TABLE>
 
-<TABLE NAME="learningstylesurvey_learningpath" COMMENT="Ruta de aprendizaje">
+        <TABLE NAME="learningstylesurvey_learningpath" COMMENT="Ruta de aprendizaje">
             <FIELDS>
                 <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
                 <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" />
                 <FIELD NAME="title" TYPE="char" LENGTH="255" NOTNULL="true" />
                 <FIELD NAME="description" TYPE="text" NOTNULL="false" />
-  </FIELDS>
+            </FIELDS>
             <KEYS>
                 <KEY NAME="primary" TYPE="primary" FIELDS="id" />
             </KEYS>
         </TABLE>
 
-<TABLE NAME="learningpath_steps" COMMENT="Pasos de la ruta">
+        <TABLE NAME="learningpath_steps" COMMENT="Pasos de la ruta">
             <FIELDS>
                 <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
                 <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true" />
@@ -46,44 +46,43 @@
                 <FIELD NAME="istest" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" />
                 <FIELD NAME="passredirect" TYPE="int" LENGTH="10" NOTNULL="false" />
                 <FIELD NAME="failredirect" TYPE="int" LENGTH="10" NOTNULL="false" />
-  </FIELDS>
+            </FIELDS>
             <KEYS>
                 <KEY NAME="primary" TYPE="primary" FIELDS="id" />
             </KEYS>
         </TABLE>
 
-<TABLE NAME="learningstylesurvey_resources" COMMENT="Archivos subidos para estilos de aprendizaje">
+        <TABLE NAME="learningstylesurvey_resources" COMMENT="Archivos subidos para estilos de aprendizaje">
             <FIELDS>
                 <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
                 <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" />
                 <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" />
                 <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true" />
                 <FIELD NAME="style" TYPE="char" LENGTH="50" NOTNULL="true" />
-                <FIELD NAME="tema" TYPE="int" LENGTH="10" NOTNULL="false"/>
+                <FIELD NAME="tema" TYPE="int" LENGTH="10" NOTNULL="false" />
                 <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
                 <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
-  </FIELDS>
+            </FIELDS>
             <KEYS>
                 <KEY NAME="primary" TYPE="primary" FIELDS="id" />
             </KEYS>
         </TABLE>
 
-<TABLE NAME="learningstylesurvey_responses" COMMENT="Stores individual question responses">
-        <FIELDS>
-            <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
-            <FIELD NAME="surveyid" TYPE="int" LENGTH="10" NOTNULL="true" />
-            <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" />
-            <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" />
-            <FIELD NAME="response" TYPE="text" NOTNULL="true" />
-            <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
-  </FIELDS>
-        <KEYS>
-            <KEY NAME="primary" TYPE="primary" FIELDS="id" />
-        </KEYS>
-    </TABLE>
+        <TABLE NAME="learningstylesurvey_responses" COMMENT="Stores individual question responses">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
+                <FIELD NAME="surveyid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="response" TYPE="text" NOTNULL="true" />
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id" />
+            </KEYS>
+        </TABLE>
 
-        
-<TABLE NAME="learningstylesurvey_inforoute" COMMENT="Pasos informativos de una ruta">
+        <TABLE NAME="learningstylesurvey_inforoute" COMMENT="Pasos informativos de una ruta">
             <FIELDS>
                 <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
                 <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" />
@@ -99,8 +98,6 @@
             </KEYS>
         </TABLE>
 
-        
-    
         <TABLE NAME="learningstylesurvey_quizzes" COMMENT="Cuestionarios definidos por el profesor">
             <FIELDS>
                 <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
@@ -142,113 +139,114 @@
             </KEYS>
         </TABLE>
 
-<TABLE NAME="learningstylesurvey_options" COMMENT="Opciones por pregunta">
-    <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="optiontext" TYPE="text" NOTNULL="true"/>
-    </FIELDS>
-    <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-    </KEYS>
-</TABLE>
+        <TABLE NAME="learningstylesurvey_options" COMMENT="Opciones por pregunta">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
+                <FIELD NAME="questionid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="optiontext" TYPE="text" NOTNULL="true" />
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id" />
+            </KEYS>
+        </TABLE>
 
-<TABLE NAME="learningstylesurvey_paths" COMMENT="Tabla para guardar rutas de aprendizaje personalizadas">
-    <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
-        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
-        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
-        <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" />
-        <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" />
-        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
-        <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="false" />
-    </FIELDS>
-    <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id" />
-    </KEYS>
-</TABLE>
+        <TABLE NAME="learningstylesurvey_paths" COMMENT="Tabla para guardar rutas de aprendizaje personalizadas">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
+                <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+                <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+                <FIELD NAME="name" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" />
+                <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true" DEFAULT="" />
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+                <FIELD NAME="cmid" TYPE="int" LENGTH="10" NOTNULL="false" />
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id" />
+            </KEYS>
+        </TABLE>
 
-<TABLE NAME="learningstylesurvey_path_files" COMMENT="Archivos por ruta">
-    <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true"/>
-        <FIELD NAME="steporder" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0"/>
-    </FIELDS>
-    <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="path_fk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id"/>
-    </KEYS>
-</TABLE>
+        <TABLE NAME="learningstylesurvey_path_files" COMMENT="Archivos por ruta">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
+                <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="filename" TYPE="char" LENGTH="255" NOTNULL="true" />
+                <FIELD NAME="steporder" TYPE="int" LENGTH="10" NOTNULL="false" DEFAULT="0" />
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id" />
+                <KEY NAME="path_fk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id" />
+            </KEYS>
+        </TABLE>
 
-<TABLE NAME="learningstylesurvey_path_evaluations" COMMENT="Evaluaciones por ruta">
-    <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="quizid" TYPE="int" LENGTH="10" NOTNULL="true"/>
-    </FIELDS>
-    <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="path_fk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id"/>
-    </KEYS>
-</TABLE>
+        <TABLE NAME="learningstylesurvey_path_evaluations" COMMENT="Evaluaciones por ruta">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
+                <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="quizid" TYPE="int" LENGTH="10" NOTNULL="true" />
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id" />
+                <KEY NAME="path_fk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id" />
+            </KEYS>
+        </TABLE>
 
-<TABLE NAME="learningstylesurvey_temas" COMMENT="Temas registrados por el maestro para un curso">
-    <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" COMMENT="Identificador único"/>
-        <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del curso"/>
-        <FIELD NAME="tema" TYPE="text" NOTNULL="true" COMMENT="Nombre o descripción del tema"/>
-        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Fecha de creación (timestamp)"/>
-        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Usuario que creó el tema"/>
-    </FIELDS>
-    <KEYS>
-         <KEY NAME="primary" TYPE="primary" FIELDS="id" COMMENT="Clave primaria"/>
-    </KEYS>
-</TABLE>
+        <TABLE NAME="learningstylesurvey_temas" COMMENT="Temas registrados por el maestro para un curso">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" COMMENT="Identificador único" />
+                <FIELD NAME="courseid" TYPE="int" LENGTH="10" NOTNULL="true" COMMENT="ID del curso" />
+                <FIELD NAME="tema" TYPE="text" NOTNULL="true" COMMENT="Nombre o descripción del tema" />
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Fecha de creación (timestamp)" />
+                <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" COMMENT="Usuario que creó el tema" />
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id" COMMENT="Clave primaria" />
+            </KEYS>
+        </TABLE>
 
-<TABLE NAME="learningstylesurvey_userstyles" COMMENT="Estilo más fuerte asignado a cada usuario">
-    <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="style" TYPE="char" LENGTH="50" NOTNULL="true"/>
-        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
-    </FIELDS>
-    <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="userid_fk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
-    </KEYS>
-</TABLE>
+        <TABLE NAME="learningstylesurvey_userstyles" COMMENT="Estilo más fuerte asignado a cada usuario">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
+                <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="style" TYPE="char" LENGTH="50" NOTNULL="true" />
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id" />
+                <KEY NAME="userid_fk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id" />
+            </KEYS>
+        </TABLE>
 
-<TABLE NAME="learningstylesurvey_user_progress" COMMENT="Progreso de los usuarios en rutas de aprendizaje">
-    <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="current_stepid" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="inprogress"/>
-        <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
-    </FIELDS>
-    <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="userfk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id"/>
-        <KEY NAME="pathfk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id"/>
-        <KEY NAME="stepfk" TYPE="foreign" FIELDS="current_stepid" REFTABLE="learningpath_steps" REFFIELDS="id"/>
-    </KEYS>
-<TABLE NAME="learningstylesurvey_path_temas" COMMENT="Relación entre rutas y temas">
-    <FIELDS>
-        <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
-        <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="temaid" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="orden" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
-        <FIELD NAME="isrefuerzo" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
-        <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0"/>
-    </FIELDS>
-    <KEYS>
-        <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
-        <KEY NAME="path_fk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id"/>
-        <KEY NAME="tema_fk" TYPE="foreign" FIELDS="temaid" REFTABLE="learningstylesurvey_temas" REFFIELDS="id"/>
-    </KEYS>
-</TABLE>
+        <TABLE NAME="learningstylesurvey_user_progress" COMMENT="Progreso de los usuarios en rutas de aprendizaje">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
+                <FIELD NAME="userid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="current_stepid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="status" TYPE="char" LENGTH="20" NOTNULL="true" DEFAULT="inprogress" />
+                <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id" />
+                <KEY NAME="userfk" TYPE="foreign" FIELDS="userid" REFTABLE="user" REFFIELDS="id" />
+                <KEY NAME="pathfk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id" />
+                <KEY NAME="stepfk" TYPE="foreign" FIELDS="current_stepid" REFTABLE="learningpath_steps" REFFIELDS="id" />
+            </KEYS>
+        </TABLE>
 
-</TABLES>
+        <TABLE NAME="learningstylesurvey_path_temas" COMMENT="Relación entre rutas y temas">
+            <FIELDS>
+                <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true" />
+                <FIELD NAME="pathid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="temaid" TYPE="int" LENGTH="10" NOTNULL="true" />
+                <FIELD NAME="orden" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+                <FIELD NAME="isrefuerzo" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0" />
+                <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true" DEFAULT="0" />
+            </FIELDS>
+            <KEYS>
+                <KEY NAME="primary" TYPE="primary" FIELDS="id" />
+                <KEY NAME="path_fk" TYPE="foreign" FIELDS="pathid" REFTABLE="learningstylesurvey_paths" REFFIELDS="id" />
+                <KEY NAME="tema_fk" TYPE="foreign" FIELDS="temaid" REFTABLE="learningstylesurvey_temas" REFFIELDS="id" />
+            </KEYS>
+        </TABLE>
+    </TABLES>
 </XMLDB>
