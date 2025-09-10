@@ -14,11 +14,11 @@ echo $OUTPUT->header();
 echo html_writer::tag('h2', 'Ruta de Aprendizaje');
 
 echo "<ul>";
-echo "<li><a href='crear_ruta_informativa.php?courseid={$courseid}'>Crear Ruta de Aprendizaje</a></li>";
-echo "<li><a href='ordenar_ruta.php?courseid={$courseid}'>Editar Ruta de Aprendizaje</a></li>";
-echo "<li><a href='eliminar_ruta.php?courseid={$courseid}'>Eliminar Ruta de Aprendizaje</a></li>";
+echo "<li><a href='path/createsteproute.php?courseid={$courseid}'>Crear Ruta de Aprendizaje</a></li>";
+echo "<li><a href='path/organizar_ruta.php?courseid={$courseid}'>Editar Ruta de Aprendizaje</a></li>";
+echo "<li><a href='path/delete_learningpath.php?courseid={$courseid}'>Eliminar Ruta de Aprendizaje</a></li>";
 echo "</ul>";
 
-echo "<a href='viewresources.php?courseid={$courseid}' class='btn btn-dark'>Regresar al Menú Anterior</a>";
+echo "<a href='resource/viewresources.php?courseid={$courseid}' class='btn btn-dark'>Regresar al Menú Anterior</a>";
 
 echo $OUTPUT->footer();

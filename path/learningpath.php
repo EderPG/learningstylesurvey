@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 
 $courseid = required_param('courseid', PARAM_INT);
 $cmid = optional_param('cmid', 0, PARAM_INT);
@@ -16,7 +16,7 @@ if (!$cmid) {
     }
 }
 
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/path/learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]));
 $PAGE->set_pagelayout('standard');
 $PAGE->set_title('Ruta de Aprendizaje');
 $PAGE->set_heading('Ruta de Aprendizaje');

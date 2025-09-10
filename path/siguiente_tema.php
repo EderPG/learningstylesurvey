@@ -1,5 +1,5 @@
 <?php
-require_once("../../config.php");
+require_once("../../../config.php");
 global $DB, $USER;
 
 require_login();
@@ -45,14 +45,14 @@ if ($nextstep) {
     }
 
     // Redirigir al siguiente paso
-    redirect(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+    redirect(new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
         'courseid' => $courseid,
         'pathid' => $pathid,
         'stepid' => $nextstep->id
     ]));
 } else {
     // Si no hay más pasos, volver a la vista general
-    redirect(new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', [
+    redirect(new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
         'courseid' => $courseid,
         'pathid' => $pathid
     ]));

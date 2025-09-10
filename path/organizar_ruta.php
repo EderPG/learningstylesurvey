@@ -1,5 +1,5 @@
 <?php
-require_once("../../config.php");
+require_once("../../../config.php");
 global $DB, $USER, $PAGE, $OUTPUT;
 
 $courseid = required_param('courseid', PARAM_INT);
@@ -9,7 +9,7 @@ require_login($courseid);
 $context = context_course::instance($courseid);
 
 $PAGE->set_context($context);
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/organizar_ruta.php', ['courseid' => $courseid, 'pathid' => $pathid]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/path/organizar_ruta.php', ['courseid' => $courseid, 'pathid' => $pathid]));
 $PAGE->set_title("Organizar Ruta");
 $PAGE->set_heading("Organizar Ruta");
 

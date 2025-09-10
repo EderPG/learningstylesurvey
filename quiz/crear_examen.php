@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 require_login();
 
 $courseid = required_param('courseid', PARAM_INT);
@@ -18,7 +18,7 @@ if ($cmid > 0) {
     }
 }
 
-$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/crear_examen.php', ['courseid' => $courseid, 'cmid' => $cmid]));
+$PAGE->set_url(new moodle_url('/mod/learningstylesurvey/quiz/crear_examen.php', ['courseid' => $courseid, 'cmid' => $cmid]));
 $PAGE->set_context(context_course::instance($courseid));
 $PAGE->set_title('Crear Recurso de Evaluación');
 $PAGE->set_heading('Crear Recurso de Evaluación');
@@ -27,7 +27,7 @@ echo $OUTPUT->header();
 echo $OUTPUT->heading('Formulario para Crear Evaluación');
 ?>
 
-<form method="post" action="guardar_examen.php">
+<form method="post" action="guardar_examen.php<?php echo isset($_GET['debug']) ? '?debug=1' : ''; ?>" onsubmit="return validarFormulario()">
     <input type="hidden" name="courseid" value="<?php echo $courseid; ?>">
 
     <div>
@@ -76,9 +76,29 @@ echo $OUTPUT->heading('Formulario para Crear Evaluación');
 </form>
 
 <script>
-let questionCount = 1;
+let questionCount = 0; // Comienza en 0 porque la primera pregunta ya existe
+
+function validarFormulario() {
+    const quizname = document.querySelector('input[name="quizname"]').value.trim();
+    if (!quizname) {
+        alert('Por favor, ingresa un nombre para la evaluación.');
+        return false;
+    }
+
+    // Verificar que todas las preguntas tengan texto (si hay preguntas)
+    const questions = document.querySelectorAll('input[name^="questions["][name$="[text]"]');
+    for (let i = 0; i < questions.length; i++) {
+        if (!questions[i].value.trim()) {
+            alert(`La pregunta ${i + 1} no tiene texto.`);
+            return false;
+        }
+    }
+
+    return true;
+}
 
 function agregarPregunta() {
+    questionCount++; // Incrementar antes de usar el índice
     const container = document.getElementById('questions');
 
     const div = document.createElement('div');
@@ -107,7 +127,6 @@ function agregarPregunta() {
         </div>
     `;
     container.appendChild(div);
-    questionCount++;
 }
 </script>
 

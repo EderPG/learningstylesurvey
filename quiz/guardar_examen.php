@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 require_login();
 
 global $DB, $USER;
@@ -9,7 +9,12 @@ $quizname = required_param('quizname', PARAM_TEXT);
 $questions = $_POST['questions'] ?? [];
 
 if (empty($questions)) {
-    print_error('Debe agregar al menos una pregunta.');
+    echo "<div style='background:#f8d7da; padding:15px; border:1px solid #f5c6cb; border-radius:5px;'>";
+    echo "<h3>❌ Error: No se encontraron preguntas</h3>";
+    echo "<p>El formulario no envió datos de preguntas válidos.</p>";
+    echo "<p><a href='javascript:history.back()'>← Regresar al formulario</a></p>";
+    echo "</div>";
+    exit;
 }
 
 // ✅ Verificar si hay una instancia activa del módulo en este curso
@@ -29,20 +34,23 @@ $quiz->name = $quizname;
 $quizid = $DB->insert_record('learningstylesurvey_quizzes', $quiz);
 
 // ✅ Insertar preguntas y opciones
+$validQuestionsCount = 0;
 foreach ($questions as $q) {
-    if (empty($q['text']) || empty($q['options']) || !isset($q['answer'])) {
+    // Verificar si la pregunta tiene datos válidos (no usar empty() para arrays)
+    $hasText = isset($q['text']) && trim($q['text']) !== '';
+    $hasOptions = isset($q['options']) && is_array($q['options']) && count($q['options']) > 0;
+    $hasAnswer = isset($q['answer']) && $q['answer'] !== '';
+
+    if (!$hasText || !$hasOptions || !$hasAnswer) {
         continue; // Saltar preguntas incompletas
     }
 
     $options = array_filter($q['options'], fn($opt) => trim($opt) !== '');
-    if (count($options) < 2) {
-        continue; // Debe tener al menos 2 opciones válidas
-    }
 
     $question = new stdClass();
     $question->quizid = $quizid;
     $question->questiontext = trim($q['text']);
-    $question->correctanswer = (int)$q['answer']; // ✅ Guardar el índice numérico de la respuesta correcta
+    $question->correctanswer = (int)$q['answer'];
     $question->timecreated = time();
     $question->timemodified = time();
     $questionid = $DB->insert_record('learningstylesurvey_questions', $question);
@@ -53,6 +61,23 @@ foreach ($questions as $q) {
         $option->optiontext = trim($opt);
         $DB->insert_record('learningstylesurvey_options', $option);
     }
+
+    $validQuestionsCount++;
+}
+
+// ✅ Verificar que haya al menos una pregunta válida
+if ($validQuestionsCount === 0) {
+    echo "<div style='background:#f8d7da; padding:15px; border:1px solid #f5c6cb; border-radius:5px;'>";
+    echo "<h3>❌ Error: El examen debe tener al menos una pregunta válida</h3>";
+    echo "<p>Una pregunta válida debe tener:</p>";
+    echo "<ul>";
+    echo "<li>Texto de la pregunta</li>";
+    echo "<li>Al menos una opción de respuesta</li>";
+    echo "<li>Una respuesta correcta seleccionada</li>";
+    echo "</ul>";
+    echo "<p><a href='javascript:history.back()'>← Regresar al formulario</a></p>";
+    echo "</div>";
+    exit;
 }
 
 // ✅ Vincular examen a la ruta activa si existe

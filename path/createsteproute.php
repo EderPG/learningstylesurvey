@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 require_login();
 
 global $DB, $USER;
@@ -19,8 +19,8 @@ if (!$cmid) {
 }
 
 $context = context_course::instance($courseid);
-$baseurl = new moodle_url('/mod/learningstylesurvey/createsteproute.php', ['courseid' => $courseid, 'cmid' => $cmid]);
-$returnurl = new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
+$baseurl = new moodle_url('/mod/learningstylesurvey/path/createsteproute.php', ['courseid' => $courseid, 'cmid' => $cmid]);
+$returnurl = new moodle_url('/mod/learningstylesurvey/path/learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
 
 $PAGE->set_url($baseurl);
 $PAGE->set_context($context);
@@ -449,9 +449,6 @@ echo $OUTPUT->heading("Crear Ruta de Aprendizaje");
                 <button type="submit" class="btn-modern btn-primary-modern" style="width: 100%; padding: 12px;">
                     💾 Guardar Ruta
                 </button>
-                <a href="learningpath.php?courseid=<?php echo $courseid; ?>" class="btn-modern btn-secondary-modern" style="width: 100%; padding: 12px; margin-top: 10px; text-decoration: none; display: block; text-align: center;">
-                    ↩️ Regresar
-                </a>
             </div>
         </div>
 
@@ -859,7 +856,7 @@ updateHiddenFields();
 </script>
 
 <?php
-$urlreturn = new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid]);
+$urlreturn = new moodle_url('/mod/learningstylesurvey/path/learningpath.php', ['courseid' => $courseid]);
 echo "<br><a href='{$urlreturn}' class='btn btn-secondary'>Regresar al menú anterior</a>";
 echo $OUTPUT->footer();
 ?>

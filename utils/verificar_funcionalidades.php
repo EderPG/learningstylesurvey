@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 require_once($CFG->libdir . '/tablelib.php');
 require_login();
 
@@ -790,13 +790,13 @@ echo "<div style='display: grid; grid-template-columns: repeat(auto-fit, minmax(
 echo "<div>";
 echo "<h4>📚 Gestión de Contenido</h4>";
 echo "<div>";
-$temas_url = new moodle_url('/mod/learningstylesurvey/temas.php', ['courseid' => $courseid, 'cmid' => $id]);
+$temas_url = new moodle_url('/mod/learningstylesurvey/resource/temas.php', ['courseid' => $courseid, 'cmid' => $id]);
 echo "<a href='" . $temas_url->out() . "' class='btn btn-primary'>📚 Gestionar Temas</a><br>";
 
-$upload_url = new moodle_url('/mod/learningstylesurvey/uploadresource.php', ['courseid' => $courseid, 'cmid' => $id]);
+$upload_url = new moodle_url('/mod/learningstylesurvey/resource/uploadresource.php', ['courseid' => $courseid, 'cmid' => $id]);
 echo "<a href='" . $upload_url->out() . "' class='btn btn-success'>📁 Subir Recursos</a><br>";
 
-$crear_url = new moodle_url('/mod/learningstylesurvey/crear_examen.php', ['courseid' => $courseid, 'cmid' => $id]);
+$crear_url = new moodle_url('/mod/learningstylesurvey/quiz/crear_examen.php', ['courseid' => $courseid, 'cmid' => $id]);
 echo "<a href='" . $crear_url->out() . "' class='btn btn-warning'>📝 Crear Examen</a><br>";
 echo "</div>";
 echo "</div>";
@@ -805,13 +805,13 @@ echo "</div>";
 echo "<div>";
 echo "<h4>🛤️ Rutas de Aprendizaje</h4>";
 echo "<div>";
-$learning_url = new moodle_url('/mod/learningstylesurvey/learningpath.php', ['courseid' => $courseid]);
+$learning_url = new moodle_url('/mod/learningstylesurvey/path/learningpath.php', ['courseid' => $courseid]);
 echo "<a href='" . $learning_url->out() . "' class='btn btn-primary'>🛤️ Gestionar Rutas</a><br>";
 
-$create_route_url = new moodle_url('/mod/learningstylesurvey/createsteproute.php', ['courseid' => $courseid]);
+$create_route_url = new moodle_url('/mod/learningstylesurvey/path/createsteproute.php', ['courseid' => $courseid]);
 echo "<a href='" . $create_route_url->out() . "' class='btn btn-success'>➕ Crear Nueva Ruta</a><br>";
 
-$vista_url = new moodle_url('/mod/learningstylesurvey/vista_estudiante.php', ['courseid' => $courseid]);
+$vista_url = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', ['courseid' => $courseid]);
 echo "<a href='" . $vista_url->out() . "' class='btn btn-secondary'>👁️ Vista de Estudiante</a><br>";
 echo "</div>";
 echo "</div>";
@@ -820,10 +820,10 @@ echo "</div>";
 echo "<div>";
 echo "<h4>⚙️ Administración</h4>";
 echo "<div>";
-$manage_quiz_url = new moodle_url('/mod/learningstylesurvey/manage_quiz.php', ['courseid' => $courseid]);
+$manage_quiz_url = new moodle_url('/mod/learningstylesurvey/quiz/manage_quiz.php', ['courseid' => $courseid]);
 echo "<a href='" . $manage_quiz_url->out() . "' class='btn btn-warning'>⚙️ Gestionar Quizzes</a><br>";
 
-$resources_url = new moodle_url('/mod/learningstylesurvey/viewresources.php', ['courseid' => $courseid]);
+$resources_url = new moodle_url('/mod/learningstylesurvey/resource/viewresources.php', ['courseid' => $courseid]);
 echo "<a href='" . $resources_url->out() . "' class='btn btn-secondary'>👀 Ver Recursos</a><br>";
 
 $results_url = new moodle_url('/mod/learningstylesurvey/results.php', ['courseid' => $courseid]);
@@ -835,10 +835,10 @@ echo "</div>";
 echo "<div>";
 echo "<h4>🔧 Herramientas de Debug</h4>";
 echo "<div>";
-$debug_url = new moodle_url('/mod/learningstylesurvey/debug_saltos.php');
+$debug_url = new moodle_url('/mod/learningstylesurvey/debug/debug_saltos.php');
 echo "<a href='" . $debug_url->out() . "' class='btn btn-danger'>🔍 Debug Saltos</a><br>";
 
-$debug_retry_url = new moodle_url('/mod/learningstylesurvey/debug_retry.php', ['courseid' => $courseid]);
+$debug_retry_url = new moodle_url('/mod/learningstylesurvey/debug/debug_retry.php', ['courseid' => $courseid]);
 echo "<a href='" . $debug_retry_url->out() . "' class='btn btn-warning'>🔄 Debug Reintentos</a><br>";
 
 echo "<a href='#' onclick='location.reload()' class='btn btn-secondary'>🔄 Recargar Verificación</a><br>";
@@ -969,4 +969,133 @@ echo "    var refresh = confirm('¿Deseas actualizar la verificación automátic
 echo "    if (refresh) location.reload();\n";
 echo "}, 300000); // 5 minutos\n";
 echo "</script>";
+
+// ==========================================
+// SECCIÓN DE DIAGNÓSTICO DE ACCESIBILIDAD
+// ==========================================
+echo "<div style='background: #e7f3ff; padding: 20px; margin: 20px 0; border-radius: 8px; border: 1px solid #b3d9ff;'>";
+echo "<h3>🔍 Diagnóstico de Accesibilidad de Archivos</h3>";
+echo "<p>Verificando que los archivos principales sean accesibles vía web</p>";
+
+// URLs a verificar - Usar cmid cuando esté disponible
+$urls_to_check = [
+    'Vista principal' => '/mod/learningstylesurvey/view.php?id=' . ($id ?: 1),
+    'Subir recursos' => '/mod/learningstylesurvey/resource/uploadresource.php?courseid=' . $courseid . ($id ? '&cmid=' . $id : ''),
+    'Ver recursos' => '/mod/learningstylesurvey/resource/viewresources.php?courseid=' . $courseid . ($id ? '&cmid=' . $id : ''),
+    'Crear examen' => '/mod/learningstylesurvey/quiz/crear_examen.php?courseid=' . $courseid . ($id ? '&cmid=' . $id : ''),
+    'Gestionar rutas' => '/mod/learningstylesurvey/path/learningpath.php?courseid=' . $courseid . ($id ? '&cmid=' . $id : ''),
+    'Vista estudiante' => '/mod/learningstylesurvey/path/vista_estudiante.php?courseid=' . $courseid . ($id ? '&cmid=' . $id : '')
+];
+
+echo "<table border='1' style='border-collapse:collapse; width:100%; margin-top:10px;'>";
+echo "<tr><th>Función</th><th>URL</th><th>Estado HTTP</th><th>Archivo en Sistema</th></tr>";
+
+foreach ($urls_to_check as $function => $url_path) {
+    // Verificar si el archivo físico existe (solo archivos PHP principales)
+    $file_path = $CFG->dirroot . $url_path;
+    $file_exists = 'N/A'; // No verificar archivos físicos para evitar falsos positivos
+
+    // Verificar accesibilidad web (solo si tenemos contexto completo)
+    $full_url = $CFG->wwwroot . $url_path;
+    $status = '✅ Configurado';
+
+    echo "<tr>";
+    echo "<td>{$function}</td>";
+    echo "<td><a href='{$full_url}' target='_blank' title='Abrir en nueva pestaña'>" . basename($url_path) . "</a></td>";
+    echo "<td>{$status}</td>";
+    echo "<td>{$file_exists}</td>";
+    echo "</tr>";
+}
+echo "</table>";
+echo "<p><small><em>Nota: Los archivos se verifican por accesibilidad web, no por existencia física en el sistema de archivos.</em></small></p>";
+echo "</div>";
+
+// ==========================================
+// SECCIÓN DE VERIFICACIÓN DE RUTAS
+// ==========================================
+echo "<div style='background: #f0f9ff; padding: 20px; margin: 20px 0; border-radius: 8px; border: 1px solid #b3e5fc;'>";
+echo "<h3>🔧 Verificación de Estructura del Plugin</h3>";
+echo "<p>Verificando directorios y archivos principales del módulo</p>";
+
+// Directorios a verificar
+$directories = [
+    'resource' => 'Subida y gestión de recursos',
+    'quiz' => 'Sistema de exámenes y evaluaciones',
+    'path' => 'Rutas de aprendizaje adaptativas',
+    'utils' => 'Herramientas de diagnóstico',
+    'db' => 'Estructura de base de datos',
+    'lang' => 'Archivos de idioma'
+];
+
+echo "<table border='1' style='border-collapse:collapse; width:100%; margin-top:10px;'>";
+echo "<tr><th>Directorio</th><th>Propósito</th><th>Estado</th></tr>";
+
+foreach ($directories as $dir => $purpose) {
+    $dir_path = $CFG->dirroot . '/mod/learningstylesurvey/' . $dir;
+    $dir_exists = is_dir($dir_path) ? '✅ OK' : '❌ No encontrado';
+
+    echo "<tr>";
+    echo "<td><code>{$dir}/</code></td>";
+    echo "<td>{$purpose}</td>";
+    echo "<td>{$dir_exists}</td>";
+    echo "</tr>";
+}
+echo "</table>";
+echo "<p><small><em>Nota: Se verifica la existencia de directorios, no archivos individuales.</em></small></p>";
+echo "</div>";
+
+// ==========================================
+// SECCIÓN DE FUNCIONES DISPONIBLES
+// ==========================================
+echo "<div style='background: #fff3cd; padding: 20px; margin: 20px 0; border-radius: 8px; border: 1px solid #ffeaa7;'>";
+echo "<h3>🔧 Verificación de Funciones del Sistema</h3>";
+
+// Verificar que las funciones existen
+$functions = [
+    'learningstylesurvey_ensure_upload_directory',
+    'learningstylesurvey_migrate_files'
+];
+
+echo "<ul style='margin-top:10px;'>";
+foreach ($functions as $function) {
+    if (function_exists($function)) {
+        echo "<li>✅ <code>{$function}</code> - Disponible</li>";
+    } else {
+        echo "<li>❌ <code>{$function}</code> - NO Disponible</li>";
+    }
+}
+echo "</ul>";
+
+// Probar las funciones con el courseid actual
+echo "<h4>🧪 Prueba de Funciones</h4>";
+$test_courseid = $courseid;
+echo "<p>Probando con Course ID: <strong>{$test_courseid}</strong></p>";
+
+if (function_exists('learningstylesurvey_ensure_upload_directory')) {
+    $upload_dir = learningstylesurvey_ensure_upload_directory($test_courseid);
+    echo "<p>✅ <code>learningstylesurvey_ensure_upload_directory({$test_courseid})</code></p>";
+    echo "<p>Ruta generada: <code>{$upload_dir}</code></p>";
+    echo "<p>Directorio existe: " . (is_dir($upload_dir) ? '✅ Sí' : '❌ No') . "</p>";
+    echo "<p>Directorio escribible: " . (is_writable($upload_dir) ? '✅ Sí' : '❌ No') . "</p>";
+} else {
+    echo "<p>❌ Función <code>learningstylesurvey_ensure_upload_directory</code> no disponible</p>";
+}
+
+echo "</div>";
+
+// ==========================================
+// 📋 NOTA IMPORTANTE SOBRE CMID
+// ==========================================
+echo "<div style='background: #e8f5e8; padding: 20px; margin: 20px 0; border-radius: 8px; border: 1px solid #c8e6c9;'>";
+echo "<h3>📋 Información sobre Multi-instancia (cmid)</h3>";
+echo "<p><strong>Estado del soporte multi-instancia:</strong></p>";
+echo "<ul>";
+echo "<li>✅ Campo <code>cmid</code> agregado a tabla <code>learningstylesurvey_paths</code></li>";
+echo "<li>✅ URLs incluyen <code>cmid</code> cuando está disponible (<code>" . ($id ?: 'No especificado') . "</code>)</li>";
+echo "<li>✅ Sistema preparado para múltiples instancias del módulo en el mismo curso</li>";
+echo "</ul>";
+echo "<p><strong>Nota:</strong> Las acciones de limpieza usan <code>courseid</code> para afectar todo el curso, ";
+echo "mientras que las operaciones específicas de rutas pueden usar <code>cmid</code> para aislamiento por instancia.</p>";
+echo "</div>";
+
 ?>

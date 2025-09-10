@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 require_login();
 
 global $DB;
@@ -297,6 +297,6 @@ if (empty($examenes_con_saltos)) {
 }
 
 echo "<br><hr>";
-echo "<p><a href='organizar_ruta.php?courseid={$courseid}&pathid={$pathid}'>🔗 Ir a Organizar Ruta</a></p>";
-echo "<p><a href='verificar_funcionalidades.php?courseid={$courseid}'>🔗 Ir a Verificar Funcionalidades</a></p>";
+echo "<p><a href='../path/organizar_ruta.php?courseid={$courseid}&pathid={$pathid}'>🔗 Ir a Organizar Ruta</a></p>";
+echo "<p><a href='../utils/verificar_funcionalidades.php?courseid={$courseid}'>🔗 Ir a Verificar Funcionalidades</a></p>";
 ?>

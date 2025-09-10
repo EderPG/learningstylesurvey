@@ -1,5 +1,5 @@
 <?php
-require_once('../../config.php');
+require_once('../../../config.php');
 require_login();
 
 global $DB, $USER;
@@ -8,7 +8,7 @@ $courseid = required_param('courseid', PARAM_INT);
 $context = context_course::instance($courseid);
 require_capability('mod/learningstylesurvey:view', $context);
 
-$PAGE->set_url('/mod/learningstylesurvey/verruta.php', ['courseid' => $courseid]);
+$PAGE->set_url('/mod/learningstylesurvey/path/verruta.php', ['courseid' => $courseid]);
 $PAGE->set_context($context);
 $PAGE->set_title('Mi Ruta de Aprendizaje');
 $PAGE->set_heading('Mi Ruta de Aprendizaje');
