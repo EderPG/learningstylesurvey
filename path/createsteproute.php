@@ -19,6 +19,13 @@ if (!$cmid) {
 }
 
 $context = context_course::instance($courseid);
+
+// Verificar permisos de creación - solo profesores o usuarios con capacidad de editar
+if (!has_capability('mod/learningstylesurvey:addinstance', $context) && 
+    !has_capability('moodle/course:manageactivities', $context)) {
+    throw new moodle_exception('nopermissiontoview', 'error');
+}
+
 $baseurl = new moodle_url('/mod/learningstylesurvey/path/createsteproute.php', ['courseid' => $courseid, 'cmid' => $cmid]);
 $returnurl = new moodle_url('/mod/learningstylesurvey/path/learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
 
@@ -671,9 +678,11 @@ function editEvaluacionItem(item) {
         `<option value="${r.uniqueId}" ${item.passredirect == r.uniqueId ? 'selected' : ''}>${r.name}</option>`
     ).join('');
     
-    const refuerzoOptions = routeItems.filter(r => r.type === 'tema' && r.isrefuerzo).map(r => 
-        `<option value="${r.uniqueId}" ${item.failredirect == r.uniqueId ? 'selected' : ''}>${r.name} (Refuerzo)</option>`
-    ).join('');
+    // Permitir saltos a cualquier tema, no solo refuerzo
+    const failOptions = routeItems.filter(r => r.type === 'tema').map(r => {
+        const refuerzoLabel = r.isrefuerzo ? ' (Refuerzo)' : '';
+        return `<option value="${r.uniqueId}" ${item.failredirect == r.uniqueId ? 'selected' : ''}>${r.name}${refuerzoLabel}</option>`;
+    }).join('');
     
     const html = `
         <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 500px;">
@@ -691,10 +700,10 @@ function editEvaluacionItem(item) {
                 <label style="font-weight: 600; margin-bottom: 5px; display: block;">❌ Si reprueba, ir a:</label>
                 <select id="eval-fail-${item.uniqueId}" style="width: 100%; padding: 8px;">
                     <option value="">Programar Salto</option>
-                    ${refuerzoOptions}
+                    ${failOptions}
                 </select>
                 <small style="color: #6c757d; display: block; margin-top: 5px;">
-                    Recomendado: Enviar a un tema de refuerzo
+                    Puede saltar a cualquier tema. Los temas de refuerzo se recomiendan para apoyo adicional.
                 </small>
             </div>
             

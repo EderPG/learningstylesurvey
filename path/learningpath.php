@@ -5,6 +5,7 @@ $courseid = required_param('courseid', PARAM_INT);
 $cmid = optional_param('cmid', 0, PARAM_INT);
 
 require_login($courseid);
+$context = context_course::instance($courseid);
 
 // Si no se proporciona cmid, obtenerlo del contexto actual o usar el primero disponible
 if (!$cmid) {
@@ -33,7 +34,27 @@ $path = $DB->get_record('learningstylesurvey_paths', [
 $pathid = $path ? $path->id : 0;
 ?>
 
+<?php
+// Verificar si el usuario tiene permisos de profesor/administrador
+$can_manage = has_capability('mod/learningstylesurvey:addinstance', $context) || 
+              has_capability('moodle/course:manageactivities', $context);
+
+// Si es estudiante, solo puede ver su ruta
+if (!$can_manage) {
+    // Redirigir directamente a la vista del estudiante
+    $vista_url = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
+        'courseid' => $courseid, 
+        'cmid' => $cmid
+    ]);
+    redirect($vista_url);
+    exit;
+}
+?>
+
 <div style="margin: 2rem;">
+    <h3>Gestión de Rutas de Aprendizaje</h3>
+    <p><em>Panel de administrador/profesor</em></p>
+    
     <ul style="list-style-type: none; padding-left: 0;">
         <li style="margin-bottom: 1rem;">
             <?php if ($pathid): ?>
@@ -57,6 +78,10 @@ $pathid = $path ? $path->id : 0;
             <?php else: ?>
                 <span style="color: #666; font-style: italic;">🗑️ Eliminar Ruta de Aprendizaje (No hay rutas creadas)</span>
             <?php endif; ?>
+        </li>
+        
+        <li style="margin-bottom: 1rem;">
+            <a href="vista_estudiante.php?courseid=<?php echo $courseid; ?>&cmid=<?php echo $cmid; ?>">👁️ Ver Ruta como Estudiante</a>
         </li>
 
         <?php /* 
