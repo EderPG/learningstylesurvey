@@ -7,6 +7,13 @@ global $DB, $USER;
 $courseid = required_param('courseid', PARAM_INT);
 $cmid = required_param('cmid', PARAM_INT); // Obtener el Course Module ID para identificar la instancia
 $context = context_course::instance($courseid);
+
+// Verificar permisos de edición - solo profesores o usuarios con capacidad de editar
+if (!has_capability('mod/learningstylesurvey:addinstance', $context) && 
+    !has_capability('moodle/course:manageactivities', $context)) {
+    throw new moodle_exception('nopermissiontoview', 'error');
+}
+
 $baseurl = new moodle_url('/mod/learningstylesurvey/path/edit_learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
 $returnurl = new moodle_url('/mod/learningstylesurvey/path/learningpath.php', ['courseid' => $courseid, 'cmid' => $cmid]);
 
@@ -67,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar'])) {
     $orden_items = optional_param('orden_hidden', '', PARAM_RAW);
 
     // Debug temporal - mostrar valores recibidos
-    $debug_mode = true; // Cambiar a false cuando funcione
+    $debug_mode = false; // Cambiar a false cuando funcione
     if ($debug_mode) {
         echo "<div style='background: #f0f0f0; padding: 10px; margin: 10px; border: 1px solid #ccc;'>";
         echo "<h4>Debug - Valores recibidos:</h4>";
@@ -610,81 +617,78 @@ $(document).ready(function() {
         echo json_encode([
             'path_temas' => array_values($path_temas),
             'path_evaluaciones' => array_values($path_evaluaciones),
-            'existing_steps' => array_values($existing_steps)
+            'all_items_ordered' => $all_items
         ]); 
     ?>);
 
     // Cargar datos existentes de la ruta
     <?php
     // Crear un array combinado de todos los elementos para mantener el orden correcto
+    // Usaremos learningpath_steps como fuente de verdad para el orden
     $all_items = [];
     
-    // Cargar temas existentes
-    foreach ($path_temas as $pt) {
-        $tema = $DB->get_record('learningstylesurvey_temas', ['id' => $pt->temaid]);
-        if ($tema) {
-            $all_items[] = [
-                'type' => 'tema',
-                'id' => $pt->temaid,
-                'name' => $tema->tema,
-                'orden' => $pt->orden,
-                'es_refuerzo' => $pt->isrefuerzo
-            ];
+    // Obtener el orden desde learningpath_steps
+    $steps_sql = "SELECT DISTINCT stepnumber, resourceid, istest 
+                  FROM {learningpath_steps} 
+                  WHERE pathid = ? 
+                  ORDER BY stepnumber ASC";
+    $steps = $DB->get_records_sql($steps_sql, [$pathid]);
+    
+    foreach ($steps as $step) {
+        if ($step->istest == 1) {
+            // Es una evaluación
+            $eval = $DB->get_record('learningstylesurvey_quizzes', ['id' => $step->resourceid]);
+            if ($eval) {
+                // Obtener saltos de esta evaluación
+                $step_detail = $DB->get_record('learningpath_steps', [
+                    'pathid' => $pathid, 
+                    'resourceid' => $step->resourceid, 
+                    'istest' => 1
+                ]);
+                
+                $all_items[] = [
+                    'type' => 'evaluacion',
+                    'id' => $step->resourceid,
+                    'name' => $eval->name,
+                    'orden' => $step->stepnumber,
+                    'passredirect' => $step_detail ? $step_detail->passredirect : 0,
+                    'failredirect' => $step_detail ? $step_detail->failredirect : 0
+                ];
+            }
+        } else {
+            // Es un recurso - necesitamos encontrar el tema
+            $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
+            if ($resource) {
+                $tema = $DB->get_record('learningstylesurvey_temas', ['id' => $resource->tema]);
+                if ($tema) {
+                    // Verificar si este tema ya fue agregado (evitar duplicados)
+                    $tema_ya_agregado = false;
+                    foreach ($all_items as $existing_item) {
+                        if ($existing_item['type'] === 'tema' && $existing_item['id'] == $resource->tema) {
+                            $tema_ya_agregado = true;
+                            break;
+                        }
+                    }
+                    
+                    if (!$tema_ya_agregado) {
+                        // Verificar si es tema de refuerzo
+                        $path_tema = $DB->get_record('learningstylesurvey_path_temas', 
+                            ['pathid' => $pathid, 'temaid' => $resource->tema]);
+                        
+                        $all_items[] = [
+                            'type' => 'tema',
+                            'id' => $resource->tema,
+                            'name' => $tema->tema,
+                            'orden' => $step->stepnumber,
+                            'es_refuerzo' => $path_tema ? $path_tema->isrefuerzo : 0
+                        ];
+                    }
+                }
+            }
         }
     }
     
-    // Obtener TODOS los recursos válidos (para validar saltos)
-    $recursos_validos = $DB->get_records_sql("
-        SELECT id 
-        FROM {learningstylesurvey_resources} 
-        WHERE courseid = ? AND userid = ?
-    ", array($courseid, $USER->id));
-    $recursos_validos_para_saltos = array_keys($recursos_validos);
-    
-    // Cargar evaluaciones existentes
-    foreach ($path_evaluaciones as $pe) {
-        $eval = $DB->get_record('learningstylesurvey_quizzes', ['id' => $pe->quizid]);
-        if ($eval) {
-            // Buscar saltos existentes en learningpath_steps
-            $step = $DB->get_record('learningpath_steps', ['pathid' => $pathid, 'resourceid' => $pe->quizid, 'istest' => 1]);
-            $pass_redirect = $step ? $step->passredirect : 0;
-            $fail_redirect = $step ? $step->failredirect : 0;
-            $orden_eval = $step ? $step->stepnumber : 999;
-            
-            // Los saltos se preservan tal como están configurados
-            // No validamos porque pueden apuntar a recursos válidos fuera de la ruta actual
-            /*
-            // VALIDAR saltos contra recursos que existen (no temas)
-            if ($pass_redirect && !in_array($pass_redirect, $recursos_validos_para_saltos)) {
-                $pass_redirect = 0; // Limpiar salto inválido
-                // Actualizar en la BD inmediatamente
-                $DB->set_field('learningpath_steps', 'passredirect', 0, 
-                    ['pathid' => $pathid, 'resourceid' => $pe->quizid, 'istest' => 1]);
-            }
-            if ($fail_redirect && !in_array($fail_redirect, $recursos_validos_para_saltos)) {
-                $fail_redirect = 0; // Limpiar salto inválido
-                // Actualizar en la BD inmediatamente
-                $DB->set_field('learningpath_steps', 'failredirect', 0, 
-                    ['pathid' => $pathid, 'resourceid' => $pe->quizid, 'istest' => 1]);
-            }
-            */
-            
-            $all_items[] = [
-                'type' => 'evaluacion',
-                'id' => $pe->quizid,
-                'name' => $eval->name,
-                'orden' => $orden_eval,
-                'passredirect' => $pass_redirect,
-                'failredirect' => $fail_redirect
-            ];
-        }
-    }
-    
-    // Ordenar todos los elementos por orden
-    usort($all_items, function($a, $b) {
-        return $a['orden'] - $b['orden'];
-    });
-    
+    // Los elementos ya vienen ordenados desde la consulta SQL
     // Generar JavaScript para cada elemento en el orden correcto
     foreach ($all_items as $item) {
         if ($item['type'] === 'tema') {
@@ -706,8 +710,8 @@ $(document).ready(function() {
                 name: " . json_encode($item['name']) . ",
                 orden: {$item['orden']},
                 es_refuerzo: false,
-                passredirect: {$item['passredirect']},
-                failredirect: {$item['failredirect']}
+                passredirect: " . (isset($item['passredirect']) ? intval($item['passredirect']) : 0) . ",
+                failredirect: " . (isset($item['failredirect']) ? intval($item['failredirect']) : 0) . "
             });\n";
         }
     }
@@ -810,7 +814,21 @@ $(document).ready(function() {
         $("#sortable-route").sortable({
             placeholder: "sortable-placeholder",
             update: function(event, ui) {
-                updateOrder();
+                // Actualizar el orden de routeItems basado en el DOM
+                const sortedUniqueIds = $("#sortable-route .route-item").map(function() {
+                    return $(this).data('unique-id');
+                }).get();
+                
+                const newOrderItems = [];
+                sortedUniqueIds.forEach(uniqueId => {
+                    const item = routeItems.find(item => item.uniqueId === uniqueId);
+                    if (item) {
+                        newOrderItems.push(item);
+                    }
+                });
+                
+                routeItems = newOrderItems;
+                updateHiddenFields();
             }
         });
     }
@@ -838,13 +856,15 @@ $(document).ready(function() {
             .map(item => `${item.id}:${item.failredirect}`)
             .join(',');
         
+        // Generar orden basado en uniqueId de los elementos
+        const orden = routeItems.map(item => item.uniqueId).join(',');
+        
         $('#temas_hidden').val(temas.join(','));
         $('#evaluacion_hidden').val(evaluaciones.join(','));
         $('#temas_refuerzo').val(temasRefuerzo.join(','));
         $('#saltos_aprueba').val(saltosAprueba);
         $('#saltos_reprueba').val(saltosReprueba);
-        
-        updateOrder();
+        $('#orden_hidden').val(orden);
     }
 
     // Agregar tema
