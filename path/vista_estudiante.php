@@ -8,6 +8,7 @@ $pathid = optional_param('pathid', 0, PARAM_INT);
 $stepid = optional_param('stepid', 0, PARAM_INT);
 $tema_salto = optional_param('tema_salto', 0, PARAM_INT); // Para saltos adaptativos por tema
 $tema_refuerzo = optional_param('tema_refuerzo', 0, PARAM_INT); // Para temas de refuerzo
+$resource_index = optional_param('resource_index', 0, PARAM_INT); // Para navegación secuencial en temas de salto
 $cmid = optional_param('cmid', 0, PARAM_INT);
 $completed = optional_param('completed', 0, PARAM_INT); // Para mostrar mensaje de finalización
 
@@ -140,36 +141,6 @@ if (!$userstyle) {
 }
 $style = $userstyle->style; // El estilo ya viene normalizado desde la base de datos
 
-// Debug temporal - mostrar información del filtrado
-$debug_info = optional_param('debug', 0, PARAM_INT); // Debug desactivado
-if ($debug_info) {
-    echo "<div class='alert alert-info'>";
-    echo "<h4>Debug - Información de filtrado:</h4>";
-    echo "<p><strong>Usuario:</strong> {$USER->id}</p>";
-    echo "<p><strong>Estilo original:</strong> {$userstyle->style}</p>";
-    echo "<p><strong>Estilo normalizado:</strong> {$style}</p>";
-    echo "<p><strong>Curso:</strong> {$courseid}</p>";
-    
-    // Mostrar recursos disponibles
-    $all_resources = $DB->get_records('learningstylesurvey_resources', ['courseid' => $courseid]);
-    echo "<p><strong>Recursos totales en el curso:</strong> " . count($all_resources) . "</p>";
-    
-    $style_resources = $DB->get_records('learningstylesurvey_resources', [
-        'courseid' => $courseid,
-        'style' => $style
-    ]);
-    echo "<p><strong>Recursos para estilo '{$style}':</strong> " . count($style_resources) . "</p>";
-    
-    if ($style_resources) {
-        echo "<ul>";
-        foreach ($style_resources as $res) {
-            echo "<li>ID: {$res->id}, Tema: {$res->tema}, Archivo: {$res->filename}</li>";
-        }
-        echo "</ul>";
-    }
-    echo "</div>";
-}
-
 // Obtener ruta más reciente si no se pasa pathid
 if (!$pathid) {
     $lastroute = $DB->get_record_sql("
@@ -207,94 +178,170 @@ if ($completed) {
 
 // Manejar saltos adaptativos por tema
 if ($tema_salto) {
-    // Mostrar recursos del tema asignado por salto
+    // Determinar si es un salto a tema de refuerzo o salto normal
     $tema = $DB->get_record('learningstylesurvey_temas', ['id' => $tema_salto]);
+    $is_refuerzo_tema = $DB->get_record('learningstylesurvey_path_temas', [
+        'pathid' => $pathid,
+        'temaid' => $tema_salto,
+        'isrefuerzo' => 1
+    ]);
+    
     if ($tema) {
-        echo "<div class='alert alert-success'>Has sido dirigido al tema: <strong>" . format_string($tema->tema) . "</strong></div>";
+        if ($is_refuerzo_tema) {
+            // SALTO A TEMA DE REFUERZO - Redirección automática después del refuerzo
+            echo "<div class='alert alert-warning'>🔄 <strong>Salto automático a tema de refuerzo:</strong> " . format_string($tema->tema) . "</div>";
+        } else {
+            // SALTO NORMAL - Continuar con la ruta sin forzar retorno
+            echo "<div class='alert alert-success'>🎯 <strong>Salto a tema:</strong> " . format_string($tema->tema) . "</div>";
+        }
+        
         $recursos = $DB->get_records('learningstylesurvey_resources', [
             'tema' => $tema_salto,
             'style' => $style,
             'courseid' => $courseid
-        ]);
+        ], 'id ASC'); // Ordenar consistentemente
         
         if ($recursos) {
-            $resource = reset($recursos); // Tomar el primer recurso del tema
+            $resource_keys = array_keys($recursos);
+            $current_index = max(0, $resource_index); // Asegurar que no sea negativo
+            
+            if ($current_index < count($resource_keys)) {
+                $resource_id = $resource_keys[$current_index];
+                $resource = $recursos[$resource_id];
+            } else {
+                // Índice fuera de rango, usar el último recurso
+                $resource = end($recursos);
+                $current_index = count($resource_keys) - 1;
+            }
             
             // Mostrar título del tema de salto
-            echo "<div style='background:#d4edda; border-left:4px solid #28a745; padding:15px; margin-bottom:20px; border-radius:5px;'>";
-            echo "<h3 style='margin:0; color:#155724;'>🎯 " . format_string($tema->tema) . " (Tema asignado)</h3>";
-            echo "</div>";
+            if ($is_refuerzo_tema) {
+                echo "<div style='background:#fff3cd; border-left:4px solid #ffc107; padding:15px; margin-bottom:20px; border-radius:5px;'>";
+                echo "<h3 style='margin:0; color:#856404;'>🔄 " . format_string($tema->tema) . " (Refuerzo programado)</h3>";
+                echo "</div>";
+            } else {
+                echo "<div style='background:#d4edda; border-left:4px solid #28a745; padding:15px; margin-bottom:20px; border-radius:5px;'>";
+                echo "<h3 style='margin:0; color:#155724;'>🎯 " . format_string($tema->tema) . " (Tema asignado)</h3>";
+                echo "</div>";
+            }
             
             mostrar_recurso($resource);
             
-            // Buscar el siguiente paso después de este salto en la ruta
-            $current_step = $DB->get_record_sql("
-                SELECT s.* FROM {learningpath_steps} s
-                JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
-                WHERE s.pathid = ? AND r.tema = ? AND s.istest = 0
-                ORDER BY s.stepnumber ASC LIMIT 1
-            ", [$pathid, $tema_salto]);
-            
-            if ($current_step) {
-                // Buscar el siguiente paso en la ruta después de este tema
-                $next_step = $DB->get_record_sql("
-                    SELECT s.* FROM {learningpath_steps} s
-                    JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
-                    WHERE s.pathid = ? AND r.style = ? AND s.stepnumber > ? AND s.istest = 0
-                    ORDER BY s.stepnumber ASC LIMIT 1
-                ", [$pathid, $style, $current_step->stepnumber]);
+            if ($is_refuerzo_tema) {
+                // TEMA DE REFUERZO: Regresar automáticamente al examen pendiente
+                echo "<div style='margin-top:30px; padding: 15px; background: #e7f3ff; border-left: 4px solid #007bff; border-radius: 5px;'>";
+                echo "<h4 style='margin-top: 0;'>⏳ Retornando al examen pendiente...</h4>";
+                echo "<p>Has completado el tema de refuerzo. Ahora regresarás al examen que necesitas aprobar.</p>";
+                echo "<div class='progress' style='height:10px; margin:15px 0;'>";
+                echo "<div class='progress-bar progress-bar-striped progress-bar-animated' style='width:100%; background:#007bff;'></div>";
+                echo "</div>";
+                echo "</div>";
                 
-                if ($next_step) {
-                    // Actualizar progreso del usuario al siguiente paso
-                    $progress = $DB->get_record('learningstylesurvey_user_progress', [
-                        'userid' => $USER->id,
-                        'pathid' => $pathid
-                    ]);
-                    
-                    if ($progress) {
-                        $progress->current_stepid = $next_step->id;
-                        $progress->timemodified = time();
-                        $DB->update_record('learningstylesurvey_user_progress', $progress);
-                    } else {
-                        $new_progress = (object)[
-                            'userid' => $USER->id,
-                            'pathid' => $pathid,
-                            'current_stepid' => $next_step->id,
-                            'status' => 'inprogress',
-                            'timemodified' => time()
-                        ];
-                        $DB->insert_record('learningstylesurvey_user_progress', $new_progress);
-                    }
-                    
-                    // Botón para continuar al siguiente paso
-                    $nexturl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
+                // Buscar el examen que originó este salto de refuerzo
+                $pending_exam = $DB->get_record_sql("
+                    SELECT qr.*, s.failredirect 
+                    FROM {learningstylesurvey_quiz_results} qr
+                    JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
+                    WHERE qr.userid = ? AND qr.courseid = ? AND qr.score < 70 AND s.failredirect = ?
+                    ORDER BY qr.timecompleted DESC LIMIT 1
+                ", [$USER->id, $courseid, $tema_salto]);
+                
+                if ($pending_exam) {
+                    $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
+                        'id' => $pending_exam->quizid,
                         'courseid' => $courseid,
-                        'pathid' => $pathid,
-                        'stepid' => $next_step->id
+                        'embedded' => 1,
+                        'retry' => 1,
+                        'cmid' => $cmid,
+                        'from_refuerzo' => 1
                     ]);
-                    echo "<div style='margin-top:20px;'>";
-                    echo "<a href='" . $nexturl->out() . "' class='btn btn-success'>Continuar con la ruta</a>";
-                    echo "</div>";
+                    
+                    echo "<p style='text-align:center; margin-top:20px;'>";
+                    echo "<a href='{$retryurl}' class='btn btn-primary btn-lg'>🔄 Ir al reintento del examen</a>";
+                    echo "</p>";
                 } else {
-                    // No hay más pasos, la ruta está completa
-                    echo "<div class='alert alert-success' style='margin-top:20px; text-align:center; padding:25px;'>";
-                    echo "<h4>🎉 ¡Has completado la ruta de aprendizaje!</h4>";
-                    echo "<p>¡Felicitaciones! Has terminado exitosamente todos los contenidos.</p>";
-                    if ($cmid) {
-                        $menuurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id'=>$cmid]);
-                        echo "<a href='{$menuurl}' class='btn btn-primary btn-lg' style='margin-top:15px;'>Regresar al menú principal</a>";
-                    }
-                    echo "</div>";
+                    // Si no encuentra examen específico, botón manual para continuar
+                    // Buscar el siguiente paso en la ruta para obtener el stepid
+                    $next_step = $DB->get_record_sql("
+                        SELECT s.* FROM {learningpath_steps} s 
+                        WHERE s.pathid = ? 
+                        ORDER BY s.stepnumber ASC LIMIT 1
+                    ", [$pathid]);
+                    
+                    $stepid_param = $next_step ? $next_step->id : 0;
+                    
+                    echo "<form method='POST' action='siguiente.php' style='margin-top:20px;'>
+                            <input type='hidden' name='stepid' value='{$stepid_param}'>
+                            <input type='hidden' name='courseid' value='{$courseid}'>
+                            <input type='hidden' name='pathid' value='{$pathid}'>
+                            <input type='hidden' name='cmid' value='{$cmid}'>
+                            <button type='submit' class='btn btn-success'>Continuar con la ruta</button>
+                          </form>";
                 }
             } else {
-                // Este tema no está en la ruta, regresar al flujo normal
-                $returnurl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
-                    'courseid' => $courseid,
-                    'pathid' => $pathid
-                ]);
-                echo "<div style='margin-top:20px;'>";
-                echo "<a href='" . $returnurl->out() . "' class='btn btn-success'>Continuar con la ruta</a>";
+                // SALTO NORMAL: Mostrar todos los recursos del tema secuencialmente
+                echo "<div style='margin-top:30px; padding: 15px; background: #d1ecf1; border-left: 4px solid #bee5eb; border-radius: 5px;'>";
+                echo "<h4 style='margin-top: 0;'>⏩ Tema de salto</h4>";
+                echo "<p>Estás viendo el material asignado para complementar tu aprendizaje.</p>";
                 echo "</div>";
+                
+                // BOTÓN MANUAL para continuar navegando por los recursos del tema
+                $total_resources = count($recursos);
+                $next_index = $current_index + 1;
+                
+                if ($next_index < $total_resources) {
+                    // Hay más recursos en este tema - continuar con el siguiente
+                    echo "<div style='text-align: center; margin-top: 20px;'>";
+                    echo "<p>Recurso " . ($current_index + 1) . " de " . $total_resources . " en este tema</p>";
+                    echo "<a href='?courseid={$courseid}&pathid={$pathid}&tema_salto={$tema_salto}&resource_index={$next_index}&cmid={$cmid}' class='btn btn-success'>Continuar con el siguiente recurso</a>";
+                    echo "</div>";
+                } else {
+                    // Ya completó todos los recursos del tema - continuar avanzando en la ruta desde este punto
+                    echo "<div style='margin-top:20px; padding: 15px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 5px;'>";
+                    echo "<h4 style='margin-top: 0;'>✅ Tema completado</h4>";
+                    echo "<p>Has completado todos los recursos de este tema (" . ($current_index + 1) . " de " . $total_resources . "). Continuando con la ruta...</p>";
+                    echo "</div>";
+                    
+                    // Buscar cualquier paso del tema actual para obtener su posición en la ruta
+                    $current_tema_step = $DB->get_record_sql("
+                        SELECT s.* FROM {learningpath_steps} s
+                        JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
+                        WHERE s.pathid = ? AND r.tema = ? AND s.istest = 0
+                        ORDER BY s.stepnumber ASC LIMIT 1
+                    ", [$pathid, $tema_salto]);
+                    
+                    if ($current_tema_step) {
+                        // Buscar el siguiente paso después de este tema
+                        $next_step = $DB->get_record_sql("
+                            SELECT s.* FROM {learningpath_steps} s
+                            LEFT JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id AND s.istest = 0
+                            LEFT JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
+                            WHERE s.pathid = ? AND s.stepnumber > ? 
+                            AND (
+                                (s.istest = 1) OR 
+                                (s.istest = 0 AND r.style = ? AND r.courseid = ? AND (pt.isrefuerzo = 0 OR pt.isrefuerzo IS NULL))
+                            )
+                            ORDER BY s.stepnumber ASC LIMIT 1
+                        ", [$pathid, $current_tema_step->stepnumber, $style, $courseid]);
+                        
+                        if ($next_step) {
+                            // Hay un siguiente paso - continuar desde aquí
+                            echo "<p style='text-align:center; margin-top:20px;'>";
+                            echo "<a href='?courseid={$courseid}&pathid={$pathid}&stepid={$next_step->id}&cmid={$cmid}' class='btn btn-success'>Continuar al siguiente paso</a>";
+                            echo "</p>";
+                        } else {
+                            // No hay más pasos - ruta completada
+                            echo "<p style='text-align:center; margin-top:20px;'>";
+                            echo "<a href='?courseid={$courseid}&pathid={$pathid}&completed=1&cmid={$cmid}' class='btn btn-success'>Finalizar ruta</a>";
+                            echo "</p>";
+                        }
+                    } else {
+                        // Fallback: continuar con la navegación general
+                        echo "<p style='text-align:center; margin-top:20px;'>";
+                        echo "<a href='?courseid={$courseid}&pathid={$pathid}&cmid={$cmid}' class='btn btn-success'>Continuar</a>";
+                        echo "</p>";
+                    }
+                }
             }
         } else {
             echo "<div class='alert alert-warning'>No hay recursos para tu estilo de aprendizaje en este tema.</div>";
@@ -306,36 +353,11 @@ if ($tema_salto) {
 }
 
 if ($tema_refuerzo) {
-    // Mostrar tema de refuerzo
+    // TEMA DE REFUERZO - Mostrar y luego redirección automática
     $tema = $DB->get_record('learningstylesurvey_temas', ['id' => $tema_refuerzo]);
     if ($tema) {
-        echo "<div class='alert alert-warning'>Necesitas refuerzo en el tema: <strong>" . format_string($tema->tema) . "</strong></div>";
+        echo "<div class='alert alert-warning'>🔄 <strong>Tema de refuerzo:</strong> " . format_string($tema->tema) . "</div>";
         
-        // DEBUG: Agregar información de debug
-        if ($debug_info) {
-            echo "<div class='alert alert-info'>";
-            echo "<h4>Debug - Recursos de refuerzo:</h4>";
-            echo "<p><strong>Tema refuerzo ID:</strong> {$tema_refuerzo}</p>";
-            echo "<p><strong>Estilo usuario:</strong> {$style}</p>";
-            echo "<p><strong>Curso:</strong> {$courseid}</p>";
-            
-            // Buscar TODOS los recursos de este tema sin filtro de estilo
-            $todos_recursos = $DB->get_records('learningstylesurvey_resources', [
-                'tema' => $tema_refuerzo,
-                'courseid' => $courseid
-            ]);
-            echo "<p><strong>Recursos totales para este tema:</strong> " . count($todos_recursos) . "</p>";
-            if ($todos_recursos) {
-                echo "<ul>";
-                foreach ($todos_recursos as $r) {
-                    echo "<li>ID: {$r->id}, Estilo: '{$r->style}', Usuario: {$r->userid}, Archivo: {$r->filename}</li>";
-                }
-                echo "</ul>";
-            }
-            echo "</div>";
-        }
-        
-        // Buscar recursos de refuerzo para este tema y estilo
         $recursos_refuerzo = $DB->get_records('learningstylesurvey_resources', [
             'tema' => $tema_refuerzo,
             'style' => $style,
@@ -350,8 +372,88 @@ if ($tema_refuerzo) {
             echo "</div>";
             
             mostrar_recurso($resource);
+            
+            // Buscar el examen que necesita reintento basado en el tema de refuerzo
+            $pending_exam = $DB->get_record_sql("
+                SELECT qr.quizid, qr.score, qr.timecompleted, s.pathid, s.stepnumber
+                FROM {learningstylesurvey_quiz_results} qr
+                JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
+                JOIN {learningstylesurvey_resources} r ON r.id = s.failredirect
+                WHERE qr.userid = ? AND qr.courseid = ? AND qr.score < 70 AND r.tema = ?
+                ORDER BY qr.timecompleted DESC LIMIT 1
+            ", [$USER->id, $courseid, $tema_refuerzo]);
+            
+            if ($pending_exam) {
+                // RETORNO AUTOMÁTICO AL EXAMEN después del refuerzo
+                echo "<div style='margin-top:30px; padding: 15px; background: #e7f3ff; border-left: 4px solid #007bff; border-radius: 5px;'>";
+                echo "<h4 style='margin-top: 0;'>⏳ Retornando al examen pendiente...</h4>";
+                echo "<p>Una vez que hayas revisado el material de refuerzo, regresarás automáticamente al examen que necesitas aprobar.</p>";
+                echo "<div class='progress' style='height:10px; margin:15px 0;'>";
+                echo "<div class='progress-bar progress-bar-striped progress-bar-animated' style='width:100%; background:#007bff;'></div>";
+                echo "</div>";
+                echo "</div>";
+                
+                $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
+                    'id' => $pending_exam->quizid,
+                    'courseid' => $courseid,
+                    'embedded' => 1,
+                    'retry' => 1,
+                    'cmid' => $cmid,
+                    'from_refuerzo' => 1
+                ]);
+                
+                echo "<p style='text-align:center; margin-top:20px;'>";
+                echo "<a href='{$retryurl}' class='btn btn-primary btn-lg'>🔄 Ir al reintento del examen</a>";
+                echo "</p>";
+            } else {
+                // Si no hay examen específico pendiente, buscar el examen que originó este salto
+                $originating_exam = $DB->get_record_sql("
+                    SELECT s.*, qr.quizid 
+                    FROM {learningpath_steps} s
+                    JOIN {learningstylesurvey_quiz_results} qr ON s.resourceid = qr.quizid
+                    WHERE s.pathid = ? AND s.istest = 1 AND s.failredirect = ? AND qr.userid = ? AND qr.score < 70
+                    ORDER BY qr.timecompleted DESC LIMIT 1
+                ", [$pathid, $tema_refuerzo, $USER->id]);
+                
+                if ($originating_exam) {
+                    // Encontramos el examen que causó este salto - volver a él
+                    echo "<div style='margin-top:20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 5px;'>";
+                    echo "<h4 style='margin-top: 0;'>🔄 Regresando al examen</h4>";
+                    echo "<p>Has revisado el material de refuerzo. Ahora puedes intentar el examen nuevamente.</p>";
+                    echo "</div>";
+                    
+                    $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
+                        'id' => $originating_exam->quizid,
+                        'courseid' => $courseid,
+                        'embedded' => 1,
+                        'retry' => 1,
+                        'cmid' => $cmid,
+                        'from_refuerzo' => 1
+                    ]);
+                    
+                    echo "<div style='text-align: center; margin-top: 20px;'>";
+                    echo "<a href='" . $retryurl->out() . "' class='btn btn-primary'>Reintentar Examen</a>";
+                    echo "</div>";
+                } else {
+                    // Si no se encuentra el examen origen, mensaje de error y enlace para continuar normalmente
+                    echo "<div class='alert alert-warning'>";
+                    echo "<h4>⚠️ No se encontró el examen de origen</h4>";
+                    echo "<p>No se pudo identificar el examen que originó este salto. Puedes regresar a la ruta principal.</p>";
+                    echo "</div>";
+                    
+                    $mainurl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
+                        'courseid' => $courseid,
+                        'pathid' => $pathid,
+                        'cmid' => $cmid
+                    ]);
+                    
+                    echo "<div style='text-align: center; margin-top: 20px;'>";
+                    echo "<a href='" . $mainurl->out() . "' class='btn btn-secondary'>Volver a la Ruta Principal</a>";
+                    echo "</div>";
+                }
+            }
         } else {
-            echo "<div class='alert alert-info'>No hay recursos de refuerzo específicos para tu estilo. Revisa el material general del tema.</div>";
+            echo "<div class='alert alert-info'>No hay recursos de refuerzo específicos para tu estilo. Revisando examen pendiente...</div>";
             
             // Buscar recursos sin filtro de estilo como fallback
             $recursos_generales = $DB->get_records('learningstylesurvey_resources', [
@@ -366,57 +468,49 @@ if ($tema_refuerzo) {
                 echo "<h3 style='margin:0; color:#856404;'>🔄 " . format_string($tema->tema) . " (Refuerzo)</h3>";
                 echo "</div>";
                 mostrar_recurso($resource);
-            }
-        }
-        
-        // Buscar el examen que se reprobó para permitir reintento
-        // Buscar exámenes que tengan salto de fallo configurado hacia este tema de refuerzo
-        $lastquiz = $DB->get_record_sql("
-            SELECT qr.*, s.*, ls_target.stepnumber as target_step 
-            FROM {learningstylesurvey_quiz_results} qr
-            JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
-            JOIN {learningpath_steps} ls_target ON ls_target.stepnumber = s.failredirect AND ls_target.pathid = s.pathid
-            JOIN {learningstylesurvey_resources} res ON res.id = ls_target.resourceid
-            WHERE qr.userid = ? AND qr.courseid = ? AND res.tema = ? AND qr.score < 70
-            ORDER BY qr.timecompleted DESC LIMIT 1
-        ", [$USER->id, $courseid, $tema_refuerzo]);
-        
-        if ($lastquiz) {
-            echo "<div style='margin-top:30px; padding: 15px; background: #e7f3ff; border-left: 4px solid #007bff; border-radius: 5px;'>";
-            echo "<h4 style='margin-top: 0;'>💡 ¿Listo para el reintento?</h4>";
-            echo "<p>Después de estudiar el material de refuerzo, puedes volver a intentar el examen.</p>";
-            $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
-                'id' => $lastquiz->quizid,
-                'courseid' => $courseid,
-                'embedded' => 1,
-                'retry' => 1,
-                'cmid' => $cmid
-            ]);
-            echo "<a href='{$retryurl}' class='btn btn-primary btn-lg'>🔄 Reintentar examen</a>";
-            echo "</div>";
-        } else {
-            // Fallback: buscar cualquier examen reciente reprobado
-            $fallback_quiz = $DB->get_record_sql("
-                SELECT qr.*, q.name as quiz_name
-                FROM {learningstylesurvey_quiz_results} qr
-                JOIN {learningstylesurvey_quizzes} q ON q.id = qr.quizid
-                WHERE qr.userid = ? AND qr.courseid = ? AND qr.score < 70
-                ORDER BY qr.timecompleted DESC LIMIT 1
-            ", [$USER->id, $courseid]);
-            
-            if ($fallback_quiz) {
-                echo "<div style='margin-top:30px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 5px;'>";
-                echo "<h4 style='margin-top: 0;'>📝 Reintento disponible</h4>";
-                echo "<p>Tienes un examen reprobado que puedes volver a intentar: <strong>" . format_string($fallback_quiz->quiz_name) . "</strong></p>";
-                $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
-                    'id' => $fallback_quiz->quizid,
-                    'courseid' => $courseid,
-                    'embedded' => 1,
-                    'retry' => 1,
-                    'cmid' => $cmid
-                ]);
-                echo "<a href='{$retryurl}' class='btn btn-warning btn-lg'>🔄 Reintentar examen</a>";
-                echo "</div>";
+                
+                // Redirección al examen después de mostrar recursos generales
+                $pending_exam = $DB->get_record_sql("
+                    SELECT qr.* FROM {learningstylesurvey_quiz_results} qr
+                    JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
+                    WHERE qr.userid = ? AND qr.courseid = ? AND qr.score < 70 AND s.failredirect = ?
+                    ORDER BY qr.timecompleted DESC LIMIT 1
+                ", [$USER->id, $courseid, $tema_refuerzo]);
+                
+                if ($pending_exam) {
+                    $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
+                        'id' => $pending_exam->quizid,
+                        'courseid' => $courseid,
+                        'embedded' => 1,
+                        'retry' => 1,
+                        'cmid' => $cmid,
+                        'from_refuerzo' => 1
+                    ]);
+                    
+                    echo "<p style='text-align:center; margin-top:20px;'>";
+                    echo "<a href='{$retryurl}' class='btn btn-primary btn-lg'>🔄 Ir al reintento del examen</a>";
+                    echo "</p>";
+                }
+            } else {
+                // No hay recursos, ir directo al reintento del examen
+                $pending_exam = $DB->get_record_sql("
+                    SELECT qr.* FROM {learningstylesurvey_quiz_results} qr
+                    JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
+                    WHERE qr.userid = ? AND qr.courseid = ? AND qr.score < 70 AND s.failredirect = ?
+                    ORDER BY qr.timecompleted DESC LIMIT 1
+                ", [$USER->id, $courseid, $tema_refuerzo]);
+                
+                if ($pending_exam) {
+                    $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
+                        'id' => $pending_exam->quizid,
+                        'courseid' => $courseid,
+                        'embedded' => 1,
+                        'retry' => 1,
+                        'cmid' => $cmid,
+                        'from_refuerzo' => 1
+                    ]);
+                    redirect($retryurl);
+                }
             }
         }
         
@@ -431,14 +525,17 @@ if ($stepid) {
     $step = $DB->get_record('learningpath_steps', ['id' => $stepid]);
     if ($step) {
         if ($step->istest) {
-            // Si es un examen, redirigir a responder_quiz.php
+            // Si es un examen, redirigir automáticamente (sin botón)
             $quizurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                 'id' => $step->resourceid,
                 'courseid' => $courseid,
                 'embedded' => 1,
                 'cmid' => $cmid
             ]);
+            
+            // Redirigir directamente al examen
             redirect($quizurl);
+            exit;
         } else {
             // Si es un recurso, mostrarlo
             $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
@@ -467,7 +564,7 @@ if ($stepid) {
     }
 }
 
-// Verificar si el ÚLTIMO intento de un examen de ESTA RUTA fue reprobado
+// Verificar si hay examen reprobado que requiera tema de refuerzo
 $lastquiz = $DB->get_record_sql("
     SELECT qr.*, s.failredirect 
     FROM {learningstylesurvey_quiz_results} qr
@@ -479,28 +576,15 @@ $lastquiz = $DB->get_record_sql("
 
 $show_refuerzo = false;
 $tema_refuerzo_id = null;
-if ($lastquiz && $lastquiz->score < 70 && $lastquiz->failredirect) {
-    // Solo mostrar refuerzo si realmente reprobó Y hay un tema de refuerzo configurado
+$is_returning_from_refuerzo = optional_param('from_refuerzo', 0, PARAM_INT);
+
+if ($lastquiz && $lastquiz->score < 70 && $lastquiz->failredirect && !$is_returning_from_refuerzo) {
     $tema_refuerzo_id = $lastquiz->failredirect;
     $show_refuerzo = true;
 }
 
-// Debug temporal - mostrar información del examen
-if ($debug_info) {
-    echo "<div class='alert alert-warning'>";
-    echo "<h4>Debug - Estado del examen:</h4>";
-    if ($lastquiz) {
-        echo "<p><strong>Último resultado:</strong> Score {$lastquiz->score}, Quiz ID {$lastquiz->quizid}, Tiempo: " . date('Y-m-d H:i:s', $lastquiz->timecompleted) . "</p>";
-        echo "<p><strong>Failredirect:</strong> {$lastquiz->failredirect}</p>";
-        echo "<p><strong>Mostrar refuerzo:</strong> " . ($show_refuerzo ? 'SÍ' : 'NO') . "</p>";
-    } else {
-        echo "<p><strong>No hay resultados de examen para esta ruta</strong></p>";
-    }
-    echo "</div>";
-}
-
 if ($show_refuerzo && $tema_refuerzo_id) {
-    // Buscar recursos del tema de refuerzo para el estilo del usuario
+    // REDIRECCIÓN AUTOMÁTICA A TEMA DE REFUERZO
     $recursos_refuerzo = $DB->get_records('learningstylesurvey_resources', [
         'tema' => $tema_refuerzo_id,
         'style' => $style,
@@ -508,10 +592,10 @@ if ($show_refuerzo && $tema_refuerzo_id) {
     ]);
     
     if ($recursos_refuerzo) {
-        $resource = reset($recursos_refuerzo); // Tomar el primer recurso
+        $resource = reset($recursos_refuerzo);
         $tema = $DB->get_record('learningstylesurvey_temas', ['id' => $tema_refuerzo_id]);
         
-        echo "<div class='alert alert-warning' style='margin-bottom:20px;'>Has reprobado el examen, accede al tema de refuerzo: <strong>" . format_string($tema->tema) . "</strong></div>";
+        echo "<div class='alert alert-warning' style='margin-bottom:20px;'>🔄 <strong>Redirección automática:</strong> Necesitas refuerzo en el tema: <strong>" . format_string($tema->tema) . "</strong></div>";
         
         // Mostrar título del tema de refuerzo
         echo "<div style='background:#fff3cd; border-left:4px solid #ffc107; padding:15px; margin-bottom:20px; border-radius:5px;'>";
@@ -520,21 +604,34 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         
         mostrar_recurso($resource);
         
-        // Botón para reintentar el examen después del refuerzo
+        // REDIRECCIÓN AUTOMÁTICA después de 3 segundos al reintento del examen
         echo "<div style='margin-top:30px; padding: 15px; background: #e7f3ff; border-left: 4px solid #007bff; border-radius: 5px;'>";
-        echo "<h4 style='margin-top: 0;'>💡 ¿Listo para el reintento?</h4>";
-        echo "<p>Después de estudiar el material de refuerzo, puedes volver a intentar el examen.</p>";
+        echo "<h4 style='margin-top: 0;'>⏳ Preparándote para el reintento...</h4>";
+        echo "<p>Una vez que hayas revisado el material de refuerzo, serás redirigido automáticamente al examen.</p>";
         $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
             'id' => $lastquiz->quizid,
             'courseid' => $courseid,
             'embedded' => 1,
             'retry' => 1,
-            'cmid' => $cmid
+            'cmid' => $cmid,
+            'from_refuerzo' => 1
         ]);
-        echo "<a href='{$retryurl}' class='btn btn-primary btn-lg'>🔄 Reintentar examen</a>";
+        echo "<div class='text-center'>";
+        echo "<a href='{$retryurl}' class='btn btn-primary btn-lg' id='auto-retry-btn'>🔄 Continuar al reintento del examen</a>";
+        echo "</div>";
         echo "</div>";
     } else {
         echo "<div class='alert alert-warning'>No hay recursos de refuerzo específicos para tu estilo de aprendizaje.</div>";
+        // Redirección directa al reintento si no hay recursos
+        $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
+            'id' => $lastquiz->quizid,
+            'courseid' => $courseid,
+            'embedded' => 1,
+            'retry' => 1,
+            'cmid' => $cmid,
+            'from_refuerzo' => 1
+        ]);
+        redirect($retryurl);
     }
 } else {
     // Flujo normal: consultar progreso del usuario para mostrar el paso correcto
@@ -542,47 +639,10 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         'userid' => $USER->id,
         'pathid' => $pathid
     ]);
-    
-    // Debug temporal - comentar cuando funcione
-    if ($debug_info) {
-        echo "<div class='alert alert-warning'>";
-        echo "<h4>Debug - Flujo normal:</h4>";
-        echo "<p><strong>Progreso encontrado:</strong> " . ($progress ? "SÍ (Step ID: {$progress->current_stepid})" : "NO") . "</p>";
-        echo "<p><strong>Path ID:</strong> {$pathid}</p>";
-        echo "<p><strong>User ID:</strong> {$USER->id}</p>";
-        echo "<p><strong>Estilo:</strong> {$style}</p>";
-        
-        if ($progress) {
-            // Verificar el paso actual
-            $current_step_check = $DB->get_record('learningpath_steps', ['id' => $progress->current_stepid]);
-            echo "<p><strong>Paso actual existe:</strong> " . ($current_step_check ? "SÍ" : "NO") . "</p>";
-            
-            if ($current_step_check) {
-                echo "<p><strong>Paso detalles:</strong> Recurso ID {$current_step_check->resourceid}, Test: {$current_step_check->istest}, Step Number: {$current_step_check->stepnumber}</p>";
-                
-                // Verificar el recurso del paso
-                $resource_check = $DB->get_record('learningstylesurvey_resources', ['id' => $current_step_check->resourceid]);
-                echo "<p><strong>Recurso existe:</strong> " . ($resource_check ? "SÍ (Estilo: {$resource_check->style}, Tema: {$resource_check->tema})" : "NO") . "</p>";
-            }
-        }
-        echo "</div>";
-    }
-    
+
     if ($progress && $progress->current_stepid) {
         // Si hay progreso, mostrar el paso actual del usuario
         $step = $DB->get_record('learningpath_steps', ['id' => $progress->current_stepid]);
-        
-        // Debug temporal
-        if ($debug_info) {
-            echo "<div class='alert alert-info'>";
-            echo "<h4>Debug - Verificando paso actual:</h4>";
-            echo "<p><strong>Step encontrado:</strong> " . ($step ? "SÍ" : "NO") . "</p>";
-            if ($step) {
-                echo "<p><strong>Es test:</strong> " . ($step->istest ? "SÍ" : "NO") . "</p>";
-                echo "<p><strong>Resource ID:</strong> {$step->resourceid}</p>";
-            }
-            echo "</div>";
-        }
         
         // Verificar que el step existe y coincide con el estilo del usuario
         if ($step && !$step->istest) {
@@ -590,19 +650,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                 'id' => $step->resourceid,
                 'style' => $style
             ]);
-            
-            // Debug temporal
-            if ($debug_info) {
-                echo "<div class='alert alert-warning'>";
-                echo "<h4>Debug - Validación de recurso:</h4>";
-                echo "<p><strong>Recurso encontrado para estilo:</strong> " . ($resource_check ? "SÍ" : "NO") . "</p>";
-                if ($resource_check) {
-                    echo "<p><strong>Recurso estilo:</strong> {$resource_check->style}</p>";
-                    echo "<p><strong>Recurso tema:</strong> {$resource_check->tema}</p>";
-                }
-                echo "</div>";
-            }
-            
+
             // Verificar que el tema no sea de refuerzo
             if ($resource_check) {
                 $tema_check = $DB->get_record('learningstylesurvey_path_temas', [
@@ -610,15 +658,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                     'temaid' => $resource_check->tema,
                     'isrefuerzo' => 0  // Solo temas normales
                 ]);
-                
-                // Debug temporal
-                if ($debug_info) {
-                    echo "<div class='alert alert-secondary'>";
-                    echo "<h4>Debug - Validación de tema:</h4>";
-                    echo "<p><strong>Tema válido (no refuerzo):</strong> " . ($tema_check ? "SÍ" : "NO") . "</p>";
-                    echo "</div>";
-                }
-                
+
                 if (!$tema_check) {
                     // Si el tema es de refuerzo, buscar el siguiente paso apropiado
                     $resource_check = null;
@@ -627,29 +667,105 @@ if ($show_refuerzo && $tema_refuerzo_id) {
             
             if (!$resource_check) {
                 // Si el paso actual no coincide con el estilo o es refuerzo, buscar el siguiente paso apropiado
-                $step = $DB->get_record_sql("
+                // Buscar el siguiente paso disponible
+                $potential_step = $DB->get_record_sql("
                     SELECT s.*
                     FROM {learningpath_steps} s
-                    JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
-                    JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
-                    WHERE s.pathid = ? AND r.style = ? AND s.istest = 0 AND s.stepnumber > ? AND pt.isrefuerzo = 0
+                    WHERE s.pathid = ? AND s.stepnumber > ?
                     ORDER BY s.stepnumber ASC
                     LIMIT 1
-                ", [$pathid, $style, $step->stepnumber]);
+                ", [$pathid, $step->stepnumber]);
+                
+                // Validar el paso encontrado
+                if ($potential_step) {
+                    if ($potential_step->istest) {
+                        // Es un examen, usar este paso
+                        $step = $potential_step;
+                    } else {
+                        // Es un recurso, verificar si es adecuado
+                        $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $potential_step->resourceid]);
+                        if ($resource && $resource->style == $style) {
+                            // Verificar si no es tema de refuerzo
+                            $tema_info = $DB->get_record('learningstylesurvey_path_temas', [
+                                'pathid' => $pathid,
+                                'temaid' => $resource->tema
+                            ]);
+                            if (!$tema_info || $tema_info->isrefuerzo != 1) {
+                                // Es válido, usar este paso
+                                $step = $potential_step;
+                            } else {
+                                // Es refuerzo, buscar el siguiente
+                                $step = $DB->get_record_sql("
+                                    SELECT s.*
+                                    FROM {learningpath_steps} s
+                                    WHERE s.pathid = ? AND s.stepnumber > ?
+                                    ORDER BY s.stepnumber ASC
+                                    LIMIT 1
+                                ", [$pathid, $potential_step->stepnumber]);
+                            }
+                        } else {
+                            // No es para su estilo, buscar el siguiente
+                            $step = $DB->get_record_sql("
+                                SELECT s.*
+                                FROM {learningpath_steps} s
+                                WHERE s.pathid = ? AND s.stepnumber > ?
+                                ORDER BY s.stepnumber ASC
+                                LIMIT 1
+                            ", [$pathid, $potential_step->stepnumber]);
+                        }
+                    }
+                } else {
+                    $step = null; // No hay más pasos
+                }
             }
         }
     } else {
-        // Si no hay progreso, crear uno y mostrar el primer recurso (excluyendo temas de refuerzo)
+        // Si no hay progreso, crear uno y mostrar el primer paso disponible
+        // Primero buscar el primer paso que sea un examen O un recurso para su estilo (no refuerzo)
         $step = $DB->get_record_sql("
             SELECT s.*
             FROM {learningpath_steps} s
-            JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
-            JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
-            WHERE s.pathid = ? AND r.style = ? AND s.istest = 0 AND pt.isrefuerzo = 0
+            WHERE s.pathid = ? 
             ORDER BY s.stepnumber ASC
             LIMIT 1
-        ", [$pathid, $style]);
+        ", [$pathid]);
         
+        // Validar si el primer paso es adecuado
+        if ($step) {
+            if ($step->istest) {
+                // Es un examen, está bien
+            } else {
+                // Es un recurso, verificar si es para su estilo y no es refuerzo
+                $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
+                if ($resource && $resource->style == $style) {
+                    // Verificar si el tema no es de refuerzo
+                    $tema_info = $DB->get_record('learningstylesurvey_path_temas', [
+                        'pathid' => $pathid,
+                        'temaid' => $resource->tema
+                    ]);
+                    if ($tema_info && $tema_info->isrefuerzo == 1) {
+                        // Es tema de refuerzo, buscar el siguiente paso
+                        $step = $DB->get_record_sql("
+                            SELECT s.*
+                            FROM {learningpath_steps} s
+                            WHERE s.pathid = ? AND s.stepnumber > ?
+                            ORDER BY s.stepnumber ASC
+                            LIMIT 1
+                        ", [$pathid, $step->stepnumber]);
+                    }
+                } else {
+                    // No es para su estilo, buscar el siguiente paso
+                    $step = $DB->get_record_sql("
+                        SELECT s.*
+                        FROM {learningpath_steps} s
+                        WHERE s.pathid = ? AND s.stepnumber > ?
+                        ORDER BY s.stepnumber ASC
+                        LIMIT 1
+                    ", [$pathid, $step->stepnumber]);
+                }
+            }
+        }
+
         if ($step) {
             // Crear registro de progreso
             $new_progress = (object)[
@@ -662,36 +778,12 @@ if ($show_refuerzo && $tema_refuerzo_id) {
             $DB->insert_record('learningstylesurvey_user_progress', $new_progress);
         }
     }
-    
-    // Debug temporal - validación final del paso
-    if ($debug_info) {
-        echo "<div class='alert alert-danger'>";
-        echo "<h4>Debug - Validación final del paso:</h4>";
-        echo "<p><strong>¿Paso válido encontrado?:</strong> " . ($step ? "SÍ (Step ID: {$step->id})" : "NO") . "</p>";
-        if ($step) {
-            echo "<p><strong>Resource ID del paso:</strong> {$step->resourceid}</p>";
-            echo "<p><strong>Es test:</strong> " . ($step->istest ? "SÍ" : "NO") . "</p>";
-        }
-        echo "</div>";
-    }
-    
+
     if ($step) {
         if ($step->istest) {
             // Si es un test, buscar en la tabla de quizzes
             $quiz = $DB->get_record('learningstylesurvey_quizzes', ['id' => $step->resourceid]);
-            
-            // Debug temporal
-            if ($debug_info) {
-                echo "<div class='alert alert-success'>";
-                echo "<h4>Debug - Quiz encontrado:</h4>";
-                echo "<p><strong>Quiz encontrado:</strong> " . ($quiz ? "SÍ" : "NO") . "</p>";
-                if ($quiz) {
-                    echo "<p><strong>Quiz nombre:</strong> {$quiz->name}</p>";
-                    echo "<p><strong>Quiz ID:</strong> {$quiz->id}</p>";
-                }
-                echo "</div>";
-            }
-            
+
             if ($quiz) {
                 // Verificar si ya fue aprobado
                 $quiz_result = $DB->get_record_sql("
@@ -701,16 +793,36 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                 ", [$USER->id, $quiz->id]);
                 
                 if ($quiz_result) {
-                    // Examen ya aprobado, avanzar al siguiente paso
-                    $next_step = $DB->get_record_sql("
+                    // Examen ya aprobado, avanzar al siguiente paso automáticamente
+                    $potential_next = $DB->get_record_sql("
                         SELECT s.*
                         FROM {learningpath_steps} s
-                        JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
-                        JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
-                        WHERE s.pathid = ? AND r.style = ? AND s.istest = 0 AND s.stepnumber > ? AND pt.isrefuerzo = 0
+                        WHERE s.pathid = ? AND s.stepnumber > ?
                         ORDER BY s.stepnumber ASC
                         LIMIT 1
-                    ", [$pathid, $style, $step->stepnumber]);
+                    ", [$pathid, $step->stepnumber]);
+                    
+                    $next_step = null;
+                    if ($potential_next) {
+                        if ($potential_next->istest) {
+                            // Es un examen, usar este paso
+                            $next_step = $potential_next;
+                        } else {
+                            // Es un recurso, verificar si es adecuado
+                            $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $potential_next->resourceid]);
+                            if ($resource && $resource->style == $style) {
+                                // Verificar si no es tema de refuerzo
+                                $tema_info = $DB->get_record('learningstylesurvey_path_temas', [
+                                    'pathid' => $pathid,
+                                    'temaid' => $resource->tema
+                                ]);
+                                if (!$tema_info || $tema_info->isrefuerzo != 1) {
+                                    // Es válido
+                                    $next_step = $potential_next;
+                                }
+                            }
+                        }
+                    }
                     
                     if ($next_step) {
                         // Actualizar progreso al siguiente paso
@@ -724,15 +836,26 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                         $step = null; // No hay más pasos, ir a finalización
                     }
                 } else {
-                    // Mostrar el examen
-                    echo "<div class='alert alert-info'>Tienes un examen pendiente: <strong>" . format_string($quiz->name) . "</strong></div>";
+                    // MOSTRAR EXAMEN AUTOMÁTICAMENTE - Sin botón, redirección directa
+                    echo "<div class='alert alert-info' style='text-align:center; padding:25px;'>";
+                    echo "<h4>📚 ¡Has completado todos los recursos del tema!</h4>";
+                    echo "<p>Es momento de evaluar lo aprendido.</p>";
+                    echo "<h5>⏳ Redirigiendo al examen: <strong>" . format_string($quiz->name) . "</strong></h5>";
+                    echo "<div class='progress' style='height:15px; margin:20px 0;'>";
+                    echo "<div class='progress-bar progress-bar-striped progress-bar-animated' style='width:100%; background:#007bff;'></div>";
+                    echo "</div>";
+                    echo "</div>";
+                    
                     $quizurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                         'id' => $quiz->id,
                         'courseid' => $courseid,
                         'embedded' => 1,
                         'cmid' => $cmid
                     ]);
-                    echo "<a href='{$quizurl}' class='btn btn-primary btn-lg'>📝 Realizar examen</a>";
+
+                    // Usar redirección PHP directa - más confiable que JavaScript
+                    redirect($quizurl);
+                    
                     echo "</div>";
                     echo $OUTPUT->footer();
                     exit;
@@ -746,20 +869,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         } else {
             $resource = null;
         }
-        
-        // Debug temporal
-        if ($debug_info) {
-            echo "<div class='alert alert-success'>";
-            echo "<h4>Debug - Recurso final:</h4>";
-            echo "<p><strong>Recurso encontrado:</strong> " . ($resource ? "SÍ" : "NO") . "</p>";
-            if ($resource) {
-                echo "<p><strong>Recurso estilo:</strong> {$resource->style}</p>";
-                echo "<p><strong>Recurso tema:</strong> {$resource->tema}</p>";
-                echo "<p><strong>Archivo:</strong> {$resource->filename}</p>";
-            }
-            echo "</div>";
-        }
-        
+
         if ($resource) {
             // Mostrar título del tema actual
             $tema_actual = $DB->get_record('learningstylesurvey_temas', ['id' => $resource->tema]);
@@ -771,7 +881,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
             
             mostrar_recurso($resource);
             
-            // Botón de avance manual
+            // BOTÓN MANUAL DE CONTINUAR (sin auto-avance por tiempo)
             echo "<form method='POST' action='siguiente.php'>
                     <input type='hidden' name='courseid' value='{$courseid}'>
                     <input type='hidden' name='pathid' value='{$pathid}'>
@@ -781,7 +891,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                   </form>";
         }
     } else {
-        // No hay más recursos - verificar si hay examen pendiente
+        // No hay más recursos - verificar si hay examen pendiente y mostrarlo automáticamente
         $pending_quiz = $DB->get_record_sql("
             SELECT s.*
             FROM {learningpath_steps} s
@@ -799,12 +909,12 @@ if ($show_refuerzo && $tema_refuerzo_id) {
             ", [$USER->id, $pending_quiz->resourceid]);
             
             if (!$quiz_result) {
-                echo "<div class='alert alert-warning' style='text-align:center; padding:25px;'>";
-                echo "<h4>📚 ¡Has completado todos los recursos del tema!</h4>";
-                echo "<p>Ya has estudiado todo el material disponible para tu estilo de aprendizaje.</p>";
-                echo "<p><strong>💡 Ahora es momento de evaluar lo aprendido.</strong></p>";
-                echo "<p>Haz clic en el botón de abajo para realizar el examen.</p>";
+                // Esta sección ya no se debería alcanzar - la lógica se movió a siguiente.php
+                echo "<div class='alert alert-info' style='text-align:center; padding:25px;'>";
+                echo "<h4>📚 Ruta en progreso</h4>";
+                echo "<p>Presiona 'Continuar' para avanzar en la ruta.</p>";
                 echo "</div>";
+                
             } else {
                 echo "<div class='alert alert-success' style='text-align:center; padding:25px;'>";
                 echo "<h4>🎉 ¡Felicitaciones!</h4>";
@@ -817,34 +927,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                 echo "</div>";
             }
         } else {
-            // Debug temporal - comentar cuando funcione
-            if ($debug_info) {
-                echo "<div class='alert alert-danger'>";
-                echo "<h4>Debug - No hay recursos disponibles:</h4>";
-                echo "<p><strong>Path ID:</strong> {$pathid}</p>";
-                echo "<p><strong>Estilo:</strong> {$style}</p>";
-                
-                // Verificar cuántos pasos hay en total para este estilo
-                $total_steps = $DB->get_records_sql("
-                    SELECT s.*, r.style, r.tema
-                    FROM {learningpath_steps} s
-                    JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
-                    WHERE s.pathid = ? AND r.style = ? AND s.istest = 0
-                    ORDER BY s.stepnumber ASC
-                ", [$pathid, $style]);
-                
-                echo "<p><strong>Pasos totales para tu estilo:</strong> " . count($total_steps) . "</p>";
-                
-                if ($total_steps) {
-                    echo "<ul>";
-                    foreach ($total_steps as $ts) {
-                        echo "<li>Step {$ts->stepnumber}: Recurso {$ts->resourceid}, Tema {$ts->tema}</li>";
-                    }
-                    echo "</ul>";
-                }
-                echo "</div>";
-            }
-            
+
             echo "<div class='alert alert-info' style='text-align:center;'>";
             echo "<h4>📖 Ruta en progreso</h4>";
             echo "<p>No hay más recursos disponibles en este momento para tu estilo de aprendizaje.</p>";
@@ -853,40 +936,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
     }
 }
 
-// Buscar el primer examen programado en la ruta que NO haya sido aprobado
-$quizstep = $DB->get_record_sql("
-    SELECT s.*
-    FROM {learningpath_steps} s
-    WHERE s.pathid = ? AND s.istest = 1
-    ORDER BY s.stepnumber ASC
-    LIMIT 1
-", [$pathid]);
-
-if ($quizstep && $cmid) {
-    // Verificar si este examen ya fue aprobado
-    $quiz_result = $DB->get_record_sql("
-        SELECT qr.* FROM {learningstylesurvey_quiz_results} qr
-        WHERE qr.userid = ? AND qr.quizid = ? AND qr.score >= 70
-        ORDER BY qr.timecompleted DESC LIMIT 1
-    ", [$USER->id, $quizstep->resourceid]);
-    
-    // Solo mostrar el examen si NO ha sido aprobado
-    if (!$quiz_result) {
-        echo "<div style='margin-top:30px;'>";
-        echo "<h3>Examen programado</h3>";
-        echo html_writer::link(
-            new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
-                'id' => $quizstep->resourceid,
-                'courseid' => $courseid,
-                'embedded' => 0,
-                'cmid' => $cmid
-            ]),
-            'Ir al examen',
-            ['class'=>'btn btn-primary']
-        );
-        echo "</div>";
-    }
-}
+// ELIMINAMOS la sección del botón manual del examen - ahora todo es automático
 
 // Botón regresar al menú
 if ($cmid) {
