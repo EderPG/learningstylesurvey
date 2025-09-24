@@ -179,18 +179,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar'])) {
                         if (strpos($salto, ':') !== false) {
                             list($eval_origen, $destino) = explode(':', $salto);
                             if ($eval_origen == $eval_id) {
-                                // Buscar el primer recurso del tema destino
-                                $primer_recurso = $DB->get_field_sql("
-                                    SELECT r.id FROM {learningstylesurvey_resources} r
-                                    WHERE r.tema = ? AND r.courseid = ? AND r.userid = ?
-                                    ORDER BY r.id ASC LIMIT 1
-                                ", [$destino, $courseid, $USER->id]);
-                                
-                                if ($primer_recurso) {
-                                    $pass_redirect = $primer_recurso;
+                                if ($destino == -1) {
+                                    // Salto especial para finalizar la ruta
+                                    $pass_redirect = -1;
                                 } else {
-                                    // Si no hay recursos, usar el ID del tema como referencia
-                                    $pass_redirect = $destino;
+                                    // Es un ID de recurso directo
+                                    $pass_redirect = intval($destino);
                                 }
                             }
                         }
@@ -203,18 +197,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['guardar'])) {
                         if (strpos($salto, ':') !== false) {
                             list($eval_origen, $destino) = explode(':', $salto);
                             if ($eval_origen == $eval_id) {
-                                // Buscar el primer recurso del tema destino (para refuerzo)
-                                $primer_recurso = $DB->get_field_sql("
-                                    SELECT r.id FROM {learningstylesurvey_resources} r
-                                    WHERE r.tema = ? AND r.courseid = ? AND r.userid = ?
-                                    ORDER BY r.id ASC LIMIT 1
-                                ", [$destino, $courseid, $USER->id]);
-                                
-                                if ($primer_recurso) {
-                                    $fail_redirect = $primer_recurso;
+                                if ($destino == -1) {
+                                    // Salto especial para finalizar la ruta
+                                    $fail_redirect = -1;
                                 } else {
-                                    // Si no hay recursos, usar el ID del tema como referencia
-                                    $fail_redirect = $destino;
+                                    // Es un ID de recurso directo
+                                    $fail_redirect = intval($destino);
                                 }
                             }
                         }
@@ -588,7 +576,7 @@ $(document).ready(function() {
         const recursosData = <?php 
             // Obtener mapeo de recurso_id -> tema_nombre
             $recursos_tema_map = $DB->get_records_sql("
-                SELECT r.id as resource_id, t.tema as tema_name 
+                SELECT r.id as resource_id, t.tema as tema_name, t.id as tema_id
                 FROM {learningstylesurvey_resources} r
                 JOIN {learningstylesurvey_temas} t ON r.tema = t.id  
                 WHERE r.courseid = ? AND r.userid = ?
@@ -596,18 +584,62 @@ $(document).ready(function() {
             
             $map = array();
             foreach ($recursos_tema_map as $item) {
-                $map[$item->resource_id] = $item->tema_name;
+                $map[$item->resource_id] = array(
+                    'tema_name' => $item->tema_name,
+                    'tema_id' => $item->tema_id
+                );
             }
             echo json_encode($map);
         ?>;
         
         console.log('Buscando tema para recurso ID:', resourceId, 'en:', recursosData);
-        let temaName = recursosData[resourceId] || recursosData[String(resourceId)] || recursosData[parseInt(resourceId)];
-        if (!temaName) {
+        
+        // Manejar casos especiales
+        if (resourceId == -1) {
+            return '🏁 Finalizar ruta';
+        }
+        if (resourceId == 0 || !resourceId) {
+            return 'Continuar normalmente';
+        }
+        
+        let recursoInfo = recursosData[resourceId] || recursosData[String(resourceId)] || recursosData[parseInt(resourceId)];
+        if (!recursoInfo) {
             console.warn('No se encontró tema para recurso ID:', resourceId);
             return `Recurso ID: ${resourceId}`;
         }
-        return temaName;
+        return recursoInfo.tema_name;
+    };
+
+    // Función para verificar si un tema es de refuerzo basado en el ID de recurso
+    window.isTemaRefuerzoByResourceId = function(resourceId) {
+        // Manejar casos especiales
+        if (resourceId == -1 || resourceId == 0 || !resourceId) {
+            return false;
+        }
+        
+        const recursosData = <?php 
+            $recursos_tema_map = $DB->get_records_sql("
+                SELECT r.id as resource_id, t.id as tema_id
+                FROM {learningstylesurvey_resources} r
+                JOIN {learningstylesurvey_temas} t ON r.tema = t.id  
+                WHERE r.courseid = ? AND r.userid = ?
+            ", array($courseid, $USER->id));
+            
+            $map = array();
+            foreach ($recursos_tema_map as $item) {
+                $map[$item->resource_id] = $item->tema_id;
+            }
+            echo json_encode($map);
+        ?>;
+        
+        let temaId = recursosData[resourceId] || recursosData[String(resourceId)] || recursosData[parseInt(resourceId)];
+        if (!temaId) {
+            return false;
+        }
+        
+        // Buscar si este tema está marcado como refuerzo en routeItems
+        const temaItem = routeItems.find(item => item.type === 'tema' && item.id == temaId);
+        return temaItem ? temaItem.es_refuerzo : false;
     };
 
     // Debug: mostrar datos cargados
@@ -771,14 +803,24 @@ $(document).ready(function() {
             // Mostrar saltos configurados
             if (item.type === 'evaluacion') {
                 if (item.passredirect) {
-                    // Los saltos apuntan a IDs de recursos, obtener el nombre del tema
-                    const passText = window.getTemaNameByResourceId(item.passredirect);
-                    html += `<small>✅ Si aprueba → ${passText}</small><br>`;
+                    if (item.passredirect == -1) {
+                        html += `<small>✅ Si aprueba → 🏁 Finalizar ruta</small><br>`;
+                    } else {
+                        // Los saltos apuntan a IDs de recursos, obtener el nombre del tema
+                        const passText = window.getTemaNameByResourceId(item.passredirect);
+                        html += `<small>✅ Si aprueba → ${passText}</small><br>`;
+                    }
                 }
                 if (item.failredirect) {
-                    // Los saltos apuntan a IDs de recursos, obtener el nombre del tema  
-                    const failText = window.getTemaNameByResourceId(item.failredirect) + ' (Refuerzo)';
-                    html += `<small>❌ Si reprueba → ${failText}</small>`;
+                    if (item.failredirect == -1) {
+                        html += `<small>❌ Si reprueba → 🏁 Finalizar ruta</small>`;
+                    } else {
+                        // Los saltos apuntan a IDs de recursos, obtener el nombre del tema
+                        const failText = window.getTemaNameByResourceId(item.failredirect);
+                        const isRefuerzo = window.isTemaRefuerzoByResourceId(item.failredirect);
+                        const labelText = isRefuerzo ? ' (Refuerzo)' : ' (No Refuerzo)';
+                        html += `<small>❌ Si reprueba → ${failText}${labelText}</small>`;
+                    }
                 }
             }
             
@@ -847,12 +889,12 @@ $(document).ready(function() {
         const temasRefuerzo = routeItems.filter(item => item.type === 'tema' && item.es_refuerzo).map(item => item.id);
         
         const saltosAprueba = routeItems
-            .filter(item => item.type === 'evaluacion' && item.passredirect)
+            .filter(item => item.type === 'evaluacion' && item.passredirect !== null && item.passredirect !== undefined)
             .map(item => `${item.id}:${item.passredirect}`)
             .join(',');
         
         const saltosReprueba = routeItems
-            .filter(item => item.type === 'evaluacion' && item.failredirect)
+            .filter(item => item.type === 'evaluacion' && item.failredirect !== null && item.failredirect !== undefined)
             .map(item => `${item.id}:${item.failredirect}`)
             .join(',');
         
@@ -965,15 +1007,22 @@ $(document).ready(function() {
             return;
         }
 
-        let optionsPass = '<option value="">-- Sin salto --</option>';
-        let optionsFail = '<option value="">-- Sin salto --</option>';
+        let optionsPass = '<option value="">-- Continuar normalmente --</option>';
+        let optionsFail = '<option value="">-- Continuar normalmente --</option>';
+        
+        // Agregar opción para finalizar ruta
+        optionsPass += `<option value="-1" ${item.passredirect == -1 ? 'selected' : ''}>🏁 Finalizar ruta</option>`;
+        optionsFail += `<option value="-1" ${item.failredirect == -1 ? 'selected' : ''}>🏁 Finalizar ruta</option>`;
         
         temasDisponibles.forEach(r => {
-            // Usar el ID real del tema, no el uniqueId
-            optionsPass += `<option value="${r.id}" ${item.passredirect == r.id ? 'selected' : ''}>${r.name}</option>`;
-            // Solo mostrar "(Refuerzo)" si el tema realmente es de refuerzo
-            const refuerzoText = r.es_refuerzo ? ' (Refuerzo)' : '';
-            optionsFail += `<option value="${r.id}" ${item.failredirect == r.id ? 'selected' : ''}>${r.name}${refuerzoText}</option>`;
+            // Los saltos se guardan como IDs de recursos, necesitamos mapear correctamente
+            // Necesitamos obtener el primer recurso del tema para el salto
+            const recursoId = getFirstResourceIdOfTema(r.id);
+            
+            optionsPass += `<option value="${recursoId}" ${item.passredirect == recursoId ? 'selected' : ''}>${r.name}</option>`;
+            // Solo mostrar "(Refuerzo)" si el tema realmente está marcado como refuerzo
+            const labelText = r.es_refuerzo ? ` (Refuerzo)` : ` (No Refuerzo)`;
+            optionsFail += `<option value="${recursoId}" ${item.failredirect == recursoId ? 'selected' : ''}>${r.name}${labelText}</option>`;
         });
 
         const html = `
@@ -1012,6 +1061,30 @@ $(document).ready(function() {
             $('.config-popup, #overlay').remove();
         });
     });
+    
+    // Función auxiliar para obtener el primer recurso de un tema
+    function getFirstResourceIdOfTema(temaId) {
+        // Esta función debería consultar al servidor, pero por simplicidad 
+        // usamos el mapeo inverso que ya tenemos
+        const recursosData = <?php 
+            $recursos_tema_map = $DB->get_records_sql("
+                SELECT r.id as resource_id, r.tema as tema_id
+                FROM {learningstylesurvey_resources} r
+                WHERE r.courseid = ? AND r.userid = ?
+                ORDER BY r.tema, r.id ASC
+            ", array($courseid, $USER->id));
+            
+            $tema_to_first_resource = array();
+            foreach ($recursos_tema_map as $item) {
+                if (!isset($tema_to_first_resource[$item->tema_id])) {
+                    $tema_to_first_resource[$item->tema_id] = $item->resource_id;
+                }
+            }
+            echo json_encode($tema_to_first_resource);
+        ?>;
+        
+        return recursosData[temaId] || recursosData[String(temaId)] || recursosData[parseInt(temaId)] || temaId;
+    }
 
     // Validación antes de enviar
     $('#route-form').submit(function(e) {

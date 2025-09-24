@@ -197,7 +197,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if (isset($saltos_pass[$item['id']])) {
                     $salto = $saltos_pass[$item['id']];
-                    if ($salto['type'] === 'tema') {
+                    if ($salto['type'] === 'END_ROUTE') {
+                        // Salto especial para finalizar la ruta
+                        $pass_redirect = -1; // Usar -1 para indicar final de ruta
+                    } else if ($salto['type'] === 'tema') {
                         // Encontrar el primer recurso del tema de destino
                         $primer_recurso = $DB->get_record_sql(
                             "SELECT id FROM {learningstylesurvey_resources} 
@@ -213,7 +216,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 if (isset($saltos_fail[$item['id']])) {
                     $salto = $saltos_fail[$item['id']];
-                    if ($salto['type'] === 'tema') {
+                    if ($salto['type'] === 'END_ROUTE') {
+                        // Salto especial para finalizar la ruta
+                        $fail_redirect = -1; // Usar -1 para indicar final de ruta
+                    } else if ($salto['type'] === 'tema') {
                         // Encontrar el primer recurso del tema de refuerzo
                         $primer_recurso = $DB->get_record_sql(
                             "SELECT id FROM {learningstylesurvey_resources} 
@@ -623,12 +629,20 @@ function getItemConfigInfo(item) {
     if (item.type === 'evaluacion') {
         let saltos = [];
         if (item.passredirect) {
-            const passItem = routeItems.find(r => r.uniqueId == item.passredirect);
-            saltos.push(`✅ Aprueba → ${passItem ? passItem.name : 'Item eliminado'}`);
+            if (item.passredirect === 'END_ROUTE') {
+                saltos.push(`✅ Aprueba → 🏁 Finalizar ruta`);
+            } else {
+                const passItem = routeItems.find(r => r.uniqueId == item.passredirect);
+                saltos.push(`✅ Aprueba → ${passItem ? passItem.name : 'Item eliminado'}`);
+            }
         }
         if (item.failredirect) {
-            const failItem = routeItems.find(r => r.uniqueId == item.failredirect);
-            saltos.push(`❌ Reprueba → ${failItem ? failItem.name : 'Item eliminado'}`);
+            if (item.failredirect === 'END_ROUTE') {
+                saltos.push(`❌ Reprueba → 🏁 Finalizar ruta`);
+            } else {
+                const failItem = routeItems.find(r => r.uniqueId == item.failredirect);
+                saltos.push(`❌ Reprueba → ${failItem ? failItem.name : 'Item eliminado'}`);
+            }
         }
         if (saltos.length > 0) {
             return `<div style="font-size: 11px; color: #007bff; margin-top: 3px;">${saltos.join(' | ')}</div>`;
@@ -691,7 +705,8 @@ function editEvaluacionItem(item) {
             <div style="margin: 15px 0;">
                 <label style="font-weight: 600; margin-bottom: 5px; display: block;">✅ Si aprueba, ir a:</label>
                 <select id="eval-pass-${item.uniqueId}" style="width: 100%; padding: 8px;">
-                    <option value="">Programar Salto</option>
+                    <option value="">Continuar al siguiente paso</option>
+                    <option value="END_ROUTE" ${item.passredirect === 'END_ROUTE' ? 'selected' : ''}>🏁 Finalizar ruta</option>
                     ${temaOptions}
                 </select>
             </div>
@@ -699,11 +714,12 @@ function editEvaluacionItem(item) {
             <div style="margin: 15px 0;">
                 <label style="font-weight: 600; margin-bottom: 5px; display: block;">❌ Si reprueba, ir a:</label>
                 <select id="eval-fail-${item.uniqueId}" style="width: 100%; padding: 8px;">
-                    <option value="">Programar Salto</option>
+                    <option value="">Continuar al siguiente paso</option>
+                    <option value="END_ROUTE" ${item.failredirect === 'END_ROUTE' ? 'selected' : ''}>🏁 Finalizar ruta</option>
                     ${failOptions}
                 </select>
                 <small style="color: #6c757d; display: block; margin-top: 5px;">
-                    Puede saltar a cualquier tema. Los temas de refuerzo se recomiendan para apoyo adicional.
+                    Puede saltar a cualquier tema, finalizar la ruta, o continuar normalmente. Los temas de refuerzo se recomiendan para apoyo adicional.
                 </small>
             </div>
             
@@ -813,15 +829,23 @@ function updateHiddenFields() {
     
     routeItems.filter(item => item.type === 'evaluacion').forEach(item => {
         if (item.passredirect) {
-            const targetItem = routeItems.find(r => r.uniqueId == item.passredirect);
-            if (targetItem) {
-                saltosAprueba.push(`${item.id}:${targetItem.type}:${targetItem.id}`);
+            if (item.passredirect === 'END_ROUTE') {
+                saltosAprueba.push(`${item.id}:END_ROUTE:0`);
+            } else {
+                const targetItem = routeItems.find(r => r.uniqueId == item.passredirect);
+                if (targetItem) {
+                    saltosAprueba.push(`${item.id}:${targetItem.type}:${targetItem.id}`);
+                }
             }
         }
         if (item.failredirect) {
-            const targetItem = routeItems.find(r => r.uniqueId == item.failredirect);
-            if (targetItem) {
-                saltosReprueba.push(`${item.id}:${targetItem.type}:${targetItem.id}`);
+            if (item.failredirect === 'END_ROUTE') {
+                saltosReprueba.push(`${item.id}:END_ROUTE:0`);
+            } else {
+                const targetItem = routeItems.find(r => r.uniqueId == item.failredirect);
+                if (targetItem) {
+                    saltosReprueba.push(`${item.id}:${targetItem.type}:${targetItem.id}`);
+                }
             }
         }
     });

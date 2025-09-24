@@ -237,10 +237,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         
         echo "<script>
-            // Auto-redireccionar después de 3 segundos
+            // Auto-redireccionar después de 10 segundos
             setTimeout(function() {
                 window.location.href = '{$nexturl}';
-            }, 3000);
+            }, 10000);
         </script>";
         
     } else {
@@ -322,7 +322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo "<script>
                     setTimeout(function() {
                         window.location.href = '{$retryurl}';
-                    }, 3000);
+                    }, 10000);
                 </script>";
             }
         } else {
@@ -346,7 +346,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "<script>
                 setTimeout(function() {
                     window.location.href = '{$retryurl}';
-                }, 3000);
+                }, 10000);
             </script>";
         }
     }
@@ -402,7 +402,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo "<script>
                         setTimeout(function() {
                             window.location.href = '{$refuerzourl}';
-                        }, 3000);
+                        }, 10000);
                     </script>";
                 } else {
                     // Redirección a tema normal (sin forzar retorno)
@@ -416,7 +416,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo "<script>
                         setTimeout(function() {
                             window.location.href = '{$saltourl}';
-                        }, 3000);
+                        }, 10000);
                     </script>";
                 }
             } else {
@@ -432,7 +432,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo "<script>
                     setTimeout(function() {
                         window.location.href = '{$retryurl}';
-                    }, 3000);
+                    }, 10000);
                 </script>";
             }
         } else {
@@ -448,7 +448,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "<script>
                 setTimeout(function() {
                     window.location.href = '{$retryurl}';
-                }, 3000);
+                }, 10000);
             </script>";
         }
     } else {
@@ -469,7 +469,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo "<script>
             setTimeout(function() {
                 window.location.href = '{$returnurl}';
-            }, 3000);
+            }, 10000);
         </script>";
     }
     
