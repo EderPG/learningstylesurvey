@@ -731,104 +731,43 @@ if ($show_refuerzo && $tema_refuerzo_id) {
             
             if (!$resource_check) {
                 // Si el paso actual no coincide con el estilo o es refuerzo, buscar el siguiente paso apropiado
-                // Buscar el siguiente paso disponible
                 $potential_step = $DB->get_record_sql("
                     SELECT s.*
                     FROM {learningpath_steps} s
+                    LEFT JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id AND s.istest = 0
+                    LEFT JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
                     WHERE s.pathid = ? AND s.stepnumber > ?
+                    AND (
+                        (s.istest = 1) OR 
+                        (s.istest = 0 AND r.style = ? AND r.courseid = ? AND (pt.isrefuerzo = 0 OR pt.isrefuerzo IS NULL))
+                    )
                     ORDER BY s.stepnumber ASC
                     LIMIT 1
-                ", [$pathid, $step->stepnumber]);
+                ", [$pathid, $step->stepnumber, $style, $courseid]);
                 
-                // Validar el paso encontrado
                 if ($potential_step) {
-                    if ($potential_step->istest) {
-                        // Es un examen, usar este paso
-                        $step = $potential_step;
-                    } else {
-                        // Es un recurso, verificar si es adecuado
-                        $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $potential_step->resourceid]);
-                        if ($resource && $resource->style == $style) {
-                            // Verificar si no es tema de refuerzo
-                            $tema_info = $DB->get_record('learningstylesurvey_path_temas', [
-                                'pathid' => $pathid,
-                                'temaid' => $resource->tema
-                            ]);
-                            if (!$tema_info || $tema_info->isrefuerzo != 1) {
-                                // Es válido, usar este paso
-                                $step = $potential_step;
-                            } else {
-                                // Es refuerzo, buscar el siguiente
-                                $step = $DB->get_record_sql("
-                                    SELECT s.*
-                                    FROM {learningpath_steps} s
-                                    WHERE s.pathid = ? AND s.stepnumber > ?
-                                    ORDER BY s.stepnumber ASC
-                                    LIMIT 1
-                                ", [$pathid, $potential_step->stepnumber]);
-                            }
-                        } else {
-                            // No es para su estilo, buscar el siguiente
-                            $step = $DB->get_record_sql("
-                                SELECT s.*
-                                FROM {learningpath_steps} s
-                                WHERE s.pathid = ? AND s.stepnumber > ?
-                                ORDER BY s.stepnumber ASC
-                                LIMIT 1
-                            ", [$pathid, $potential_step->stepnumber]);
-                        }
-                    }
+                    $step = $potential_step;
                 } else {
-                    $step = null; // No hay más pasos
+                    $step = null; // No hay más pasos apropiados
                 }
             }
         }
     } else {
         // Si no hay progreso, crear uno y mostrar el primer paso disponible
-        // Primero buscar el primer paso que sea un examen O un recurso para su estilo (no refuerzo)
+        // Buscar el primer paso que sea adecuado: examen O recurso para su estilo (NO refuerzo)
         $step = $DB->get_record_sql("
             SELECT s.*
             FROM {learningpath_steps} s
+            LEFT JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id AND s.istest = 0
+            LEFT JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
             WHERE s.pathid = ? 
+            AND (
+                (s.istest = 1) OR 
+                (s.istest = 0 AND r.style = ? AND r.courseid = ? AND (pt.isrefuerzo = 0 OR pt.isrefuerzo IS NULL))
+            )
             ORDER BY s.stepnumber ASC
             LIMIT 1
-        ", [$pathid]);
-        
-        // Validar si el primer paso es adecuado
-        if ($step) {
-            if ($step->istest) {
-                // Es un examen, está bien
-            } else {
-                // Es un recurso, verificar si es para su estilo y no es refuerzo
-                $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $step->resourceid]);
-                if ($resource && $resource->style == $style) {
-                    // Verificar si el tema no es de refuerzo
-                    $tema_info = $DB->get_record('learningstylesurvey_path_temas', [
-                        'pathid' => $pathid,
-                        'temaid' => $resource->tema
-                    ]);
-                    if ($tema_info && $tema_info->isrefuerzo == 1) {
-                        // Es tema de refuerzo, buscar el siguiente paso
-                        $step = $DB->get_record_sql("
-                            SELECT s.*
-                            FROM {learningpath_steps} s
-                            WHERE s.pathid = ? AND s.stepnumber > ?
-                            ORDER BY s.stepnumber ASC
-                            LIMIT 1
-                        ", [$pathid, $step->stepnumber]);
-                    }
-                } else {
-                    // No es para su estilo, buscar el siguiente paso
-                    $step = $DB->get_record_sql("
-                        SELECT s.*
-                        FROM {learningpath_steps} s
-                        WHERE s.pathid = ? AND s.stepnumber > ?
-                        ORDER BY s.stepnumber ASC
-                        LIMIT 1
-                    ", [$pathid, $step->stepnumber]);
-                }
-            }
-        }
+        ", [$pathid, $style, $courseid]);
 
         if ($step) {
             // Crear registro de progreso
@@ -861,41 +800,25 @@ if ($show_refuerzo && $tema_refuerzo_id) {
                     $potential_next = $DB->get_record_sql("
                         SELECT s.*
                         FROM {learningpath_steps} s
+                        LEFT JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id AND s.istest = 0
+                        LEFT JOIN {learningstylesurvey_path_temas} pt ON pt.temaid = r.tema AND pt.pathid = s.pathid
                         WHERE s.pathid = ? AND s.stepnumber > ?
+                        AND (
+                            (s.istest = 1) OR 
+                            (s.istest = 0 AND r.style = ? AND r.courseid = ? AND (pt.isrefuerzo = 0 OR pt.isrefuerzo IS NULL))
+                        )
                         ORDER BY s.stepnumber ASC
                         LIMIT 1
-                    ", [$pathid, $step->stepnumber]);
+                    ", [$pathid, $step->stepnumber, $style, $courseid]);
                     
-                    $next_step = null;
                     if ($potential_next) {
-                        if ($potential_next->istest) {
-                            // Es un examen, usar este paso
-                            $next_step = $potential_next;
-                        } else {
-                            // Es un recurso, verificar si es adecuado
-                            $resource = $DB->get_record('learningstylesurvey_resources', ['id' => $potential_next->resourceid]);
-                            if ($resource && $resource->style == $style) {
-                                // Verificar si no es tema de refuerzo
-                                $tema_info = $DB->get_record('learningstylesurvey_path_temas', [
-                                    'pathid' => $pathid,
-                                    'temaid' => $resource->tema
-                                ]);
-                                if (!$tema_info || $tema_info->isrefuerzo != 1) {
-                                    // Es válido
-                                    $next_step = $potential_next;
-                                }
-                            }
-                        }
-                    }
-                    
-                    if ($next_step) {
                         // Actualizar progreso al siguiente paso
-                        $progress->current_stepid = $next_step->id;
+                        $progress->current_stepid = $potential_next->id;
                         $progress->timemodified = time();
                         $DB->update_record('learningstylesurvey_user_progress', $progress);
                         
                         // Usar el siguiente paso como paso actual
-                        $step = $next_step;
+                        $step = $potential_next;
                     } else {
                         $step = null; // No hay más pasos, ir a finalización
                     }

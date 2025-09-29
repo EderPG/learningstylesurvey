@@ -66,7 +66,7 @@ $userstyle = $DB->get_record_sql("
 
 $style = $userstyle ? $userstyle->style : 'visual'; // Fallback por defecto
 
-// ✅ LÓGICA SIMPLIFICADA: Buscar el siguiente paso en orden
+// ✅ LÓGICA CORREGIDA: Buscar el siguiente paso en orden excluyendo temas de refuerzo
 $nextstep = $DB->get_record_sql("
     SELECT s.* FROM {learningpath_steps} s
     LEFT JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id AND s.istest = 0
@@ -74,7 +74,7 @@ $nextstep = $DB->get_record_sql("
     WHERE s.pathid = ? AND s.stepnumber > ? 
     AND (
         (s.istest = 1) OR 
-        (s.istest = 0 AND r.style = ? AND r.courseid = ?)
+        (s.istest = 0 AND r.style = ? AND r.courseid = ? AND (pt.isrefuerzo = 0 OR pt.isrefuerzo IS NULL))
     )
     ORDER BY s.stepnumber ASC LIMIT 1",
     [$pathid, $current->stepnumber, $style, $courseid]
