@@ -14,8 +14,7 @@ if ($serve) {
     
     if (!file_exists($filepath)) {
         header('HTTP/1.0 404 Not Found');
-        echo "El archivo físico no se encuentra en el servidor. Ruta buscada: " . $filepath;
-        exit;
+        die('Archivo no encontrado');
     }
     
     // Verificar permisos de acceso al archivo
@@ -26,8 +25,7 @@ if ($serve) {
     
     if (!$resource) {
         header('HTTP/1.0 404 Not Found');
-        echo "Archivo no encontrado en la base de datos.";
-        exit;
+        die('Recurso no encontrado');
     }
     
     // Determinar tipo MIME
@@ -64,8 +62,14 @@ if ($serve) {
     header('Content-Type: ' . $mime_type);
     header('Content-Length: ' . filesize($filepath));
     header('Content-Disposition: inline; filename="' . basename($filename) . '"');
+    header('Content-Transfer-Encoding: binary');
     header('Cache-Control: private, max-age=0, must-revalidate');
     header('Pragma: public');
+    header('X-Content-Type-Options: nosniff');
+    
+    // Limpiar cualquier salida previa
+    ob_clean();
+    flush();
     
     readfile($filepath);
     exit;
@@ -73,9 +77,23 @@ if ($serve) {
 
 $context = context_course::instance($courseid);
 $PAGE->set_context($context);
+
+// Para PDFs y otros archivos, servir directamente sin wrapper HTML
+$ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+if (in_array($ext, ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'mp3', 'wav'])) {
+    // Redireccionar directamente al archivo servido
+    $fileurl = new moodle_url("/mod/learningstylesurvey/resource/ver_recurso.php", [
+        'filename' => $filename, 
+        'courseid' => $courseid,
+        'serve' => 1
+    ]);
+    redirect($fileurl);
+    exit;
+}
+
 $PAGE->set_url(new moodle_url('/mod/learningstylesurvey/resource/ver_recurso.php', ['filename' => $filename, 'courseid' => $courseid]));
-$PAGE->set_title("Ver recurso");
-$PAGE->set_heading("Recurso");
+$PAGE->set_title("Ver: " . basename($filename));
+$PAGE->set_heading("Recurso: " . basename($filename));
 
 echo $OUTPUT->header();
 
