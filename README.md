@@ -42,10 +42,11 @@ Implementa el modelo **Felder-Silverman** con 4 dimensiones:
 ## 🚀 Instalación Rápida
 
 1. **Descargar** el plugin desde GitHub
-2. **Extraer** en `/mod/learningstylesurvey/` de tu instalación Moodle
-3. **Acceder** como administrador → Administración del sitio → Notificaciones
+2. **Acceder** como administrador → Administración del sitio → Notificaciones
+3. **Cargar** en `plugins/instalar plugin` dentro de tu entorno moodle
 4. **Seguir** el asistente de instalación
-5. **Verificar** funcionalidades con la herramienta de diagnóstico
+5. **Verificar** funcionalidades con la opción de diagnóstico
+6. **Listo** ya esta instalado y listo para usarse en tu entorno moodle al agregarlo desde el menu de recursos aparecera la nueva opción
 
 ## 📚 Documentación Completa
 
