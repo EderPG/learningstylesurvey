@@ -663,7 +663,7 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         if ($next_index < $total_resources) {
             // Hay más recursos - continuar con el siguiente
             echo "<div style='text-align: center; margin-top: 20px;'>";
-            echo "<a href='?courseid={$courseid}&pathid={$pathid}&resource_index={$next_index}&cmid={$cmid}' class='btn btn-primary btn-lg'>Continuar</a>";
+            echo "<a href='?courseid={$courseid}&pathid={$pathid}&tema_refuerzo={$tema_refuerzo_id}&resource_index={$next_index}&cmid={$cmid}' class='btn btn-primary btn-lg'>Continuar</a>";
             echo "</div>";
         } else {
             // Completó todos los recursos de refuerzo - ir al examen
