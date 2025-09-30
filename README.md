@@ -159,7 +159,7 @@ Basado en más de **30 años de investigación** en estilos de aprendizaje:
 **Desarrollado por**: EderPG  
 **Basado en**: Modelo Felder-Silverman de Estilos de Aprendizaje  
 **Inspirado en**: Investigación de NC State University  
-**Agradecimientos**: Comunidad Moodle y usuarios beta  
+**Agradecimientos**: Comunidad Moodle, usuarios beta y a la ENES campus UNAM Morelia  
 
 ---
 
