@@ -7,13 +7,27 @@ $cmid = optional_param('cmid', 0, PARAM_INT);
 require_login($courseid);
 $context = context_course::instance($courseid);
 
-// Si no se proporciona cmid, obtenerlo del contexto actual o usar el primero disponible
+// Si no se proporciona cmid, obtenerlo de manera inteligente
 if (!$cmid) {
     $modinfo = get_fast_modinfo($courseid);
     $cms = $modinfo->get_instances_of('learningstylesurvey');
     if (!empty($cms)) {
-        $firstcm = reset($cms);
-        $cmid = $firstcm->id;
+        // Buscar instancia con ruta creada por el usuario actual (para profesores)
+        $cmid_with_route = $DB->get_record_sql("
+            SELECT cmid 
+            FROM {learningstylesurvey_paths} 
+            WHERE courseid = ? AND userid = ?
+            ORDER BY timecreated DESC 
+            LIMIT 1
+        ", [$courseid, $USER->id]);
+        
+        if ($cmid_with_route) {
+            $cmid = $cmid_with_route->cmid;
+        } else {
+            // Fallback: usar la primera instancia disponible
+            $firstcm = reset($cms);
+            $cmid = $firstcm->id;
+        }
     }
 }
 

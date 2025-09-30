@@ -12,13 +12,42 @@ $resource_index = optional_param('resource_index', 0, PARAM_INT); // Para navega
 $cmid = optional_param('cmid', 0, PARAM_INT);
 $completed = optional_param('completed', 0, PARAM_INT); // Para mostrar mensaje de finalización
 
-// Si no se proporciona cmid, obtenerlo del contexto actual
+// Si no se proporciona cmid, intentar obtenerlo de manera inteligente
 if (!$cmid) {
     $modinfo = get_fast_modinfo($courseid);
     $cms = $modinfo->get_instances_of('learningstylesurvey');
     if (!empty($cms)) {
-        $firstcm = reset($cms);
-        $cmid = $firstcm->id;
+        // LÓGICA MEJORADA: Buscar instancia con ruta en progreso para el usuario
+        $cmid_with_progress = $DB->get_record_sql("
+            SELECT p.cmid 
+            FROM {learningstylesurvey_paths} p
+            LEFT JOIN {learningstylesurvey_user_progress} up ON up.pathid = p.id AND up.userid = ?
+            WHERE p.courseid = ? 
+            AND (up.status IS NULL OR up.status != 'completed')
+            ORDER BY up.timemodified DESC, p.timecreated DESC
+            LIMIT 1
+        ", [$USER->id, $courseid]);
+        
+        if ($cmid_with_progress) {
+            $cmid = $cmid_with_progress->cmid;
+        } else {
+            // Fallback: usar la instancia más reciente con ruta disponible
+            $cmid_with_route = $DB->get_record_sql("
+                SELECT cmid 
+                FROM {learningstylesurvey_paths} 
+                WHERE courseid = ?
+                ORDER BY timecreated DESC 
+                LIMIT 1
+            ", [$courseid]);
+            
+            if ($cmid_with_route) {
+                $cmid = $cmid_with_route->cmid;
+            } else {
+                // Si no hay rutas, usar la primera instancia
+                $firstcm = reset($cms);
+                $cmid = $firstcm->id;
+            }
+        }
     }
 }
 
@@ -143,16 +172,59 @@ $style = $userstyle->style; // El estilo ya viene normalizado desde la base de d
 
 // Obtener ruta más reciente si no se pasa pathid
 if (!$pathid) {
-    $lastroute = $DB->get_record_sql("
-        SELECT id 
-        FROM {learningstylesurvey_paths} 
-        WHERE courseid = ? AND cmid = ?
-        ORDER BY timecreated DESC LIMIT 1
-    ", [$courseid, $cmid]);
-    if (!$lastroute) {
+    // LÓGICA MEJORADA: Buscar ruta específica para esta instancia (cmid)
+    if ($cmid) {
+        // 1. Primero buscar si hay una ruta en progreso para esta instancia específica
+        $currentroute = $DB->get_record_sql("
+            SELECT p.id 
+            FROM {learningstylesurvey_paths} p
+            LEFT JOIN {learningstylesurvey_user_progress} up ON up.pathid = p.id AND up.userid = ?
+            WHERE p.courseid = ? AND p.cmid = ? 
+            AND (up.status IS NULL OR up.status != 'completed')
+            ORDER BY p.timecreated DESC 
+            LIMIT 1
+        ", [$USER->id, $courseid, $cmid]);
+        
+        if ($currentroute) {
+            $pathid = $currentroute->id;
+        } else {
+            // 2. Si no hay ruta en progreso, buscar cualquier ruta para esta instancia
+            $anyrouteforinstance = $DB->get_record_sql("
+                SELECT id 
+                FROM {learningstylesurvey_paths} 
+                WHERE courseid = ? AND cmid = ?
+                ORDER BY timecreated DESC 
+                LIMIT 1
+            ", [$courseid, $cmid]);
+            
+            if ($anyrouteforinstance) {
+                $pathid = $anyrouteforinstance->id;
+            }
+        }
+    }
+    
+    // 3. Si aún no hay pathid, buscar ruta más reciente del curso (fallback)
+    if (!$pathid) {
+        $lastroute = $DB->get_record_sql("
+            SELECT id, cmid
+            FROM {learningstylesurvey_paths} 
+            WHERE courseid = ?
+            ORDER BY timecreated DESC 
+            LIMIT 1
+        ", [$courseid]);
+        
+        if ($lastroute) {
+            $pathid = $lastroute->id;
+            // Actualizar cmid si no se proporcionó
+            if (!$cmid) {
+                $cmid = $lastroute->cmid;
+            }
+        }
+    }
+    
+    if (!$pathid) {
         throw new moodle_exception('No se encontró ninguna ruta para esta actividad.');
     }
-    $pathid = $lastroute->id;
 }
 
 // --- FLUJO ADAPTADO ---
