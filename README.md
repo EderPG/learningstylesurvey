@@ -50,7 +50,7 @@ Implementa el modelo **Felder-Silverman** con 4 dimensiones:
 
 ## 📚 Documentación Completa
 
-### 📖 [**Documentación Técnica Completa**](docs/documentacion)
+### 📖 [**Documentación Técnica Completa**](docs/documentacion.md)
 
 La documentación técnica completa incluye:
 
