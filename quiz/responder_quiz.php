@@ -236,11 +236,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         
+        echo "<div style='margin-top:20px; text-align:center;'>";
+        echo "<div class='alert alert-success' style='margin-bottom:20px;'>";
+        echo "<h4>✅ ¡Excelente trabajo!</h4>";
+        echo "<p>Has aprobado el examen. Tómate el tiempo necesario para revisar tu resultado.</p>";
+        echo "</div>";
+        
+        echo "<div id='countdown-message' style='margin:20px 0; padding:15px; background:#e7f3ff; border-left:4px solid #007bff; border-radius:5px;'>";
+        echo "<p><strong>🕒 Redirección automática en <span id='countdown'>30</span> segundos</strong></p>";
+        echo "<p><small>Puedes continuar manualmente cuando estés listo.</small></p>";
+        echo "</div>";
+        
+        echo "<a href='{$nexturl}' class='btn btn-success btn-lg' style='margin:10px; padding:12px 25px; font-size:16px; text-decoration:none; background:#28a745; color:white; border-radius:5px; display:inline-block;'>Continuar ahora</a>";
+        echo "</div>";
+        
         echo "<script>
-            // Auto-redireccionar después de 9 segundos
-            setTimeout(function() {
-                window.location.href = '{$nexturl}';
-            }, 9000);
+            var timeLeft = 30;
+            var countdownElement = document.getElementById('countdown');
+            
+            var timer = setInterval(function() {
+                timeLeft--;
+                countdownElement.textContent = timeLeft;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    window.location.href = '{$nexturl}';
+                }
+            }, 1000);
         </script>";
         
     } else {
@@ -265,13 +287,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 
                 if ($is_refuerzo_tema) {
-                    // ES TEMA DE REFUERZO: Redirección automática
+                    // ES TEMA DE REFUERZO: Mensaje con tiempo y botón
                     echo "<div class='alert alert-warning' style='text-align:center; margin-top:20px;'>";
-                    echo "<h4>🔄 Accediendo al material de refuerzo...</h4>";
-                    echo "<p>Serás redirigido automáticamente al tema de refuerzo para mejorar tu comprensión.</p>";
-                    echo "<div class='progress' style='height:15px; margin:20px 0;'>";
-                    echo "<div class='progress-bar progress-bar-striped progress-bar-animated' style='width:100%; background:#ffc107;'></div>";
+                    echo "<h4>🔄 Material de refuerzo disponible</h4>";
+                    echo "<p>Tu puntuación indica que necesitas revisar material adicional para reforzar tu comprensión del tema.</p>";
+                    echo "<p><strong>Te recomendamos revisar el contenido de refuerzo antes de intentar nuevamente.</strong></p>";
                     echo "</div>";
+                    
+                    echo "<div id='countdown-message-refuerzo' style='margin:20px 0; padding:15px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:5px;'>";
+                    echo "<p><strong>🕒 Redirección automática al material de refuerzo en <span id='countdown-refuerzo'>25</span> segundos</strong></p>";
+                    echo "<p><small>Puedes acceder inmediatamente si estás listo.</small></p>";
                     echo "</div>";
                     
                     $refuerzourl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
@@ -281,18 +306,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'cmid' => $cmid
                     ]);
                     
-                    // Esperar 2 segundos y luego redireccionar usando PHP
-                    sleep(2);
-                    redirect($refuerzourl);
-                    exit(); // Asegurar que no se ejecute más código
-                } else {
-                    // NO ES TEMA DE REFUERZO: Continuar normalmente sin forzar retorno
-                    echo "<div class='alert alert-info' style='text-align:center; margin-top:20px;'>";
-                    echo "<h4>🎯 Dirigiendo a tema asignado...</h4>";
-                    echo "<p>Continuarás con el tema programado y seguirás la ruta normal.</p>";
-                    echo "<div class='progress' style='height:15px; margin:20px 0;'>";
-                    echo "<div class='progress-bar progress-bar-striped progress-bar-animated' style='width:100%; background:#17a2b8;'></div>";
+                    echo "<div style='text-align:center; margin:20px 0;'>";
+                    echo "<a href='{$refuerzourl}' class='btn btn-warning btn-lg' style='margin:10px; padding:12px 25px; font-size:16px; text-decoration:none; background:#ffc107; color:#000; border-radius:5px; display:inline-block;'>Ir al material de refuerzo</a>";
                     echo "</div>";
+                    
+                    echo "<script>
+                        var timeLeftRefuerzo = 25;
+                        var countdownElementRefuerzo = document.getElementById('countdown-refuerzo');
+                        
+                        var timerRefuerzo = setInterval(function() {
+                            timeLeftRefuerzo--;
+                            countdownElementRefuerzo.textContent = timeLeftRefuerzo;
+                            
+                            if (timeLeftRefuerzo <= 0) {
+                                clearInterval(timerRefuerzo);
+                                window.location.href = '{$refuerzourl}';
+                            }
+                        }, 1000);
+                    </script>";
+                } else {
+                    // NO ES TEMA DE REFUERZO: Tema asignado para revisión
+                    echo "<div class='alert alert-info' style='text-align:center; margin-top:20px;'>";
+                    echo "<h4>🎯 Material adicional asignado</h4>";
+                    echo "<p>Se te ha asignado material adicional para complementar tu aprendizaje antes de continuar.</p>";
+                    echo "<p><strong>Te recomendamos revisar este contenido antes de seguir con la ruta.</strong></p>";
+                    echo "</div>";
+                    
+                    echo "<div id='countdown-message-salto' style='margin:20px 0; padding:15px; background:#d1ecf1; border-left:4px solid #17a2b8; border-radius:5px;'>";
+                    echo "<p><strong>🕒 Redirección automática al material en <span id='countdown-salto'>20</span> segundos</strong></p>";
+                    echo "<p><small>Puedes acceder inmediatamente si prefieres.</small></p>";
                     echo "</div>";
                     
                     $saltourl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
@@ -302,14 +344,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'cmid' => $cmid
                     ]);
                     
-                    // Esperar 2 segundos y luego redireccionar usando PHP
-                    sleep(2);
-                    redirect($saltourl);
-                    exit(); // Asegurar que no se ejecute más código
+                    echo "<div style='text-align:center; margin:20px 0;'>";
+                    echo "<a href='{$saltourl}' class='btn btn-info btn-lg' style='margin:10px; padding:12px 25px; font-size:16px; text-decoration:none; background:#17a2b8; color:white; border-radius:5px; display:inline-block;'>Ir al material asignado</a>";
+                    echo "</div>";
+                    
+                    echo "<script>
+                        var timeLeftSalto = 20;
+                        var countdownElementSalto = document.getElementById('countdown-salto');
+                        
+                        var timerSalto = setInterval(function() {
+                            timeLeftSalto--;
+                            countdownElementSalto.textContent = timeLeftSalto;
+                            
+                            if (timeLeftSalto <= 0) {
+                                clearInterval(timerSalto);
+                                window.location.href = '{$saltourl}';
+                            }
+                        }, 1000);
+                    </script>";
                 }
             } else {
                 // Si no se encuentra el recurso de salto, permitir reintento
-                echo "<div class='alert alert-info'>💡 Puedes volver a intentarlo inmediatamente.</div>";
+                echo "<div class='alert alert-info' style='text-align:center; margin-top:20px;'>";
+                echo "<h4>� Preparando nuevo intento</h4>";
+                echo "<p>No se encontró material adicional. Puedes intentar el examen nuevamente cuando estés listo.</p>";
+                echo "</div>";
+                
+                echo "<div id='countdown-message-retry1' style='margin:20px 0; padding:15px; background:#e7f3ff; border-left:4px solid #007bff; border-radius:5px;'>";
+                echo "<p><strong>🕒 Redirección automática para reintento en <span id='countdown-retry1'>15</span> segundos</strong></p>";
+                echo "<p><small>Puedes intentar inmediatamente si estás preparado.</small></p>";
+                echo "</div>";
                 
                 $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                     'id' => $quizid,
@@ -319,20 +383,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'cmid' => $cmid
                 ]);
                 
+                echo "<div style='text-align:center; margin:20px 0;'>";
+                echo "<a href='{$retryurl}' class='btn btn-primary btn-lg' style='margin:10px; padding:12px 25px; font-size:16px; text-decoration:none; background:#007bff; color:white; border-radius:5px; display:inline-block;'>Intentar nuevamente</a>";
+                echo "</div>";
+                
                 echo "<script>
-                    setTimeout(function() {
-                        window.location.href = '{$retryurl}';
-                    }, 9000);
+                    var timeLeftRetry1 = 15;
+                    var countdownElementRetry1 = document.getElementById('countdown-retry1');
+                    
+                    var timerRetry1 = setInterval(function() {
+                        timeLeftRetry1--;
+                        countdownElementRetry1.textContent = timeLeftRetry1;
+                        
+                        if (timeLeftRetry1 <= 0) {
+                            clearInterval(timerRetry1);
+                            window.location.href = '{$retryurl}';
+                        }
+                    }, 1000);
                 </script>";
             }
         } else {
             // No hay salto configurado - permitir reintento inmediato
             echo "<div class='alert alert-info' style='text-align:center; margin-top:20px;'>";
-            echo "<h4>🔄 Preparando reintento...</h4>";
-            echo "<p>Puedes volver a intentar el examen inmediatamente.</p>";
-            echo "<div class='progress' style='height:15px; margin:20px 0;'>";
-            echo "<div class='progress-bar progress-bar-striped progress-bar-animated' style='width:100%; background:#17a2b8;'></div>";
+            echo "<h4>🔄 Nuevo intento disponible</h4>";
+            echo "<p>No se ha configurado material adicional. Puedes intentar el examen nuevamente para mejorar tu puntuación.</p>";
             echo "</div>";
+            
+            echo "<div id='countdown-message-retry2' style='margin:20px 0; padding:15px; background:#e7f3ff; border-left:4px solid #007bff; border-radius:5px;'>";
+            echo "<p><strong>🕒 Redirección automática para reintento en <span id='countdown-retry2'>15</span> segundos</strong></p>";
+            echo "<p><small>Puedes comenzar cuando te sientas preparado.</small></p>";
             echo "</div>";
             
             $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
@@ -343,10 +422,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'cmid' => $cmid
             ]);
             
+            echo "<div style='text-align:center; margin:20px 0;'>";
+            echo "<a href='{$retryurl}' class='btn btn-primary btn-lg' style='margin:10px; padding:12px 25px; font-size:16px; text-decoration:none; background:#007bff; color:white; border-radius:5px; display:inline-block;'>Intentar nuevamente</a>";
+            echo "</div>";
+            
             echo "<script>
-                setTimeout(function() {
-                    window.location.href = '{$retryurl}';
-                }, 9000);
+                var timeLeftRetry2 = 15;
+                var countdownElementRetry2 = document.getElementById('countdown-retry2');
+                
+                var timerRetry2 = setInterval(function() {
+                    timeLeftRetry2--;
+                    countdownElementRetry2.textContent = timeLeftRetry2;
+                    
+                    if (timeLeftRetry2 <= 0) {
+                        clearInterval(timerRetry2);
+                        window.location.href = '{$retryurl}';
+                    }
+                }, 1000);
             </script>";
         }
     }
@@ -365,11 +457,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Si está reprobado, aplicar redirección automática
     if ($result->score < 70) {
         echo "<div class='alert alert-warning' style='text-align:center; margin-top:20px;'>";
-        echo "<h4>� Resultado insuficiente</h4>";
-        echo "<p>Serás redirigido automáticamente para mejorar tu resultado.</p>";
-        echo "<div class='progress' style='height:15px; margin:20px 0;'>";
-        echo "<div class='progress-bar progress-bar-striped progress-bar-animated' style='width:100%; background:#ffc107;'></div>";
-        echo "</div>";
+        echo "<h4>📊 Revisión de resultado</h4>";
+        echo "<p>Tu puntuación anterior fue insuficiente. Revisa las opciones disponibles para mejorar tu comprensión.</p>";
         echo "</div>";
         
         // Buscar si hay tema de refuerzo configurado
@@ -391,7 +480,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ]);
                 
                 if ($is_refuerzo_tema) {
-                    // Redirección automática a tema de refuerzo
+                    // Mensaje para tema de refuerzo
+                    echo "<div class='alert alert-info' style='margin-top:20px;'>";
+                    echo "<h5>🔄 Material de refuerzo disponible</h5>";
+                    echo "<p>Se recomienda revisar el material de refuerzo antes de intentar nuevamente.</p>";
+                    echo "</div>";
+                    
+                    echo "<div id='countdown-message-previo-refuerzo' style='margin:20px 0; padding:15px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:5px;'>";
+                    echo "<p><strong>🕒 Redirección automática al refuerzo en <span id='countdown-previo-refuerzo'>20</span> segundos</strong></p>";
+                    echo "</div>";
+                    
                     $refuerzourl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
                         'courseid' => $courseid,
                         'pathid' => $step->pathid,
@@ -399,13 +497,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'cmid' => $cmid
                     ]);
                     
+                    echo "<div style='text-align:center; margin:20px 0;'>";
+                    echo "<a href='{$refuerzourl}' class='btn btn-warning btn-lg' style='margin:10px; padding:12px 25px; font-size:16px; text-decoration:none; background:#ffc107; color:#000; border-radius:5px; display:inline-block;'>Ir al refuerzo</a>";
+                    echo "</div>";
+                    
                     echo "<script>
-                        setTimeout(function() {
-                            window.location.href = '{$refuerzourl}';
-                        }, 9000);
+                        var timeLeftPrevioRefuerzo = 20;
+                        var countdownElementPrevioRefuerzo = document.getElementById('countdown-previo-refuerzo');
+                        
+                        var timerPrevioRefuerzo = setInterval(function() {
+                            timeLeftPrevioRefuerzo--;
+                            countdownElementPrevioRefuerzo.textContent = timeLeftPrevioRefuerzo;
+                            
+                            if (timeLeftPrevioRefuerzo <= 0) {
+                                clearInterval(timerPrevioRefuerzo);
+                                window.location.href = '{$refuerzourl}';
+                            }
+                        }, 1000);
                     </script>";
                 } else {
                     // Redirección a tema normal (sin forzar retorno)
+                    echo "<div class='alert alert-info' style='margin-top:20px;'>";
+                    echo "<h5>📚 Material de apoyo disponible</h5>";
+                    echo "<p>Se ha configurado material adicional para ayudarte a mejorar. Puedes revisarlo antes de reintentar.</p>";
+                    echo "</div>";
+                    
+                    echo "<div id='countdown-message-previo-salto' style='margin:20px 0; padding:15px; background:#d1ecf1; border-left:4px solid #17a2b8; border-radius:5px;'>";
+                    echo "<p><strong>🕒 Redirección automática en <span id='countdown-previo-salto'>18</span> segundos</strong></p>";
+                    echo "</div>";
+                    
                     $saltourl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
                         'courseid' => $courseid,
                         'pathid' => $step->pathid,
@@ -413,14 +533,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'cmid' => $cmid
                     ]);
                     
+                    echo "<div style='text-align:center; margin:20px 0;'>";
+                    echo "<a href='{$saltourl}' class='btn btn-info btn-lg' style='margin:10px; padding:12px 25px; font-size:16px; text-decoration:none; background:#17a2b8; color:#fff; border-radius:5px; display:inline-block;'>Ver material</a>";
+                    echo "</div>";
+                    
                     echo "<script>
-                        setTimeout(function() {
-                            window.location.href = '{$saltourl}';
-                        }, 9000);
+                        var timeLeftPrevioSalto = 18;
+                        var countdownElementPrevioSalto = document.getElementById('countdown-previo-salto');
+                        
+                        var timerPrevioSalto = setInterval(function() {
+                            timeLeftPrevioSalto--;
+                            countdownElementPrevioSalto.textContent = timeLeftPrevioSalto;
+                            
+                            if (timeLeftPrevioSalto <= 0) {
+                                clearInterval(timerPrevioSalto);
+                                window.location.href = '{$saltourl}';
+                            }
+                        }, 1000);
                     </script>";
                 }
             } else {
                 // Si no se encuentra recurso, ir a reintento
+                echo "<div class='alert alert-secondary' style='margin-top:20px;'>";
+                echo "<h5>🔄 Preparando reintento</h5>";
+                echo "<p>No se encontró material específico. Puedes volver a intentar cuando estés listo.</p>";
+                echo "</div>";
+                
+                echo "<div id='countdown-message-previo-retry' style='margin:20px 0; padding:15px; background:#f8f9fa; border-left:4px solid #6c757d; border-radius:5px;'>";
+                echo "<p><strong>🕒 Redirección automática al reintento en <span id='countdown-previo-retry'>15</span> segundos</strong></p>";
+                echo "</div>";
+                
                 $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                     'id' => $quizid,
                     'courseid' => $courseid,
@@ -429,14 +571,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'cmid' => $cmid
                 ]);
                 
+                echo "<div style='text-align:center; margin:20px 0;'>";
+                echo "<a href='{$retryurl}' class='btn btn-secondary btn-lg' style='margin:10px; padding:12px 25px; font-size:16px; text-decoration:none; background:#6c757d; color:#fff; border-radius:5px; display:inline-block;'>Reintentar ahora</a>";
+                echo "</div>";
+                
                 echo "<script>
-                    setTimeout(function() {
-                        window.location.href = '{$retryurl}';
-                    }, 9000);
+                    var timeLeftPrevioRetry = 15;
+                    var countdownElementPrevioRetry = document.getElementById('countdown-previo-retry');
+                    
+                    var timerPrevioRetry = setInterval(function() {
+                        timeLeftPrevioRetry--;
+                        countdownElementPrevioRetry.textContent = timeLeftPrevioRetry;
+                        
+                        if (timeLeftPrevioRetry <= 0) {
+                            clearInterval(timerPrevioRetry);
+                            window.location.href = '{$retryurl}';
+                        }
+                    }, 1000);
                 </script>";
             }
         } else {
             // No hay tema de refuerzo - ir directo a reintento
+            echo "<div class='alert alert-warning' style='margin-top:20px;'>";
+            echo "<h5>🎯 Preparando nuevo intento</h5>";
+            echo "<p>No hay material de refuerzo configurado. Puedes intentar el examen nuevamente cuando te sientas preparado.</p>";
+            echo "</div>";
+            
+            echo "<div id='countdown-message-previo-direct' style='margin:20px 0; padding:15px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:5px;'>";
+            echo "<p><strong>🕒 Redirección automática al reintento en <span id='countdown-previo-direct'>15</span> segundos</strong></p>";
+            echo "</div>";
+            
             $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
                 'id' => $quizid,
                 'courseid' => $courseid,
@@ -445,20 +609,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'cmid' => $cmid
             ]);
             
+            echo "<div style='text-align:center; margin:20px 0;'>";
+            echo "<a href='{$retryurl}' class='btn btn-warning btn-lg' style='margin:10px; padding:12px 25px; font-size:16px; text-decoration:none; background:#ffc107; color:#000; border-radius:5px; display:inline-block;'>Reintentar examen</a>";
+            echo "</div>";
+            
             echo "<script>
-                setTimeout(function() {
-                    window.location.href = '{$retryurl}';
-                }, 9000);
+                var timeLeftPrevioDirect = 15;
+                var countdownElementPrevioDirect = document.getElementById('countdown-previo-direct');
+                
+                var timerPrevioDirect = setInterval(function() {
+                    timeLeftPrevioDirect--;
+                    countdownElementPrevioDirect.textContent = timeLeftPrevioDirect;
+                    
+                    if (timeLeftPrevioDirect <= 0) {
+                        clearInterval(timerPrevioDirect);
+                        window.location.href = '{$retryurl}';
+                    }
+                }, 1000);
             </script>";
         }
     } else {
         // Está aprobado - continuar con la ruta
         echo "<div class='alert alert-success' style='text-align:center; margin-top:20px;'>";
         echo "<h4>✅ Examen ya aprobado</h4>";
-        echo "<p>Continuando con la ruta de aprendizaje...</p>";
-        echo "<div class='progress' style='height:15px; margin:20px 0;'>";
-        echo "<div class='progress-bar progress-bar-striped progress-bar-animated' style='width:100%; background:#28a745;'></div>";
+        echo "<p>Tu resultado anterior fue exitoso. Continuando con la ruta de aprendizaje...</p>";
         echo "</div>";
+        
+        echo "<div id='countdown-message-previo-aprobado' style='margin:20px 0; padding:15px; background:#d4edda; border-left:4px solid #28a745; border-radius:5px;'>";
+        echo "<p><strong>🕒 Redirección automática en <span id='countdown-previo-aprobado'>25</span> segundos</strong></p>";
         echo "</div>";
         
         $returnurl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
@@ -466,10 +644,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'cmid' => $cmid
         ]);
         
+        echo "<div style='text-align:center; margin:20px 0;'>";
+        echo "<a href='{$returnurl}' class='btn btn-success btn-lg' style='margin:10px; padding:12px 25px; font-size:16px; text-decoration:none; background:#28a745; color:#fff; border-radius:5px; display:inline-block;'>Continuar ruta</a>";
+        echo "</div>";
+        
         echo "<script>
-            setTimeout(function() {
-                window.location.href = '{$returnurl}';
-            }, 9000);
+            var timeLeftPrevioAprobado = 25;
+            var countdownElementPrevioAprobado = document.getElementById('countdown-previo-aprobado');
+            
+            var timerPrevioAprobado = setInterval(function() {
+                timeLeftPrevioAprobado--;
+                countdownElementPrevioAprobado.textContent = timeLeftPrevioAprobado;
+                
+                if (timeLeftPrevioAprobado <= 0) {
+                    clearInterval(timerPrevioAprobado);
+                    window.location.href = '{$returnurl}';
+                }
+            }, 1000);
         </script>";
     }
     
