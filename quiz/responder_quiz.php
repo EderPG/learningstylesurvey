@@ -295,7 +295,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo "</div>";
                     
                     echo "<div id='countdown-message-refuerzo' style='margin:20px 0; padding:15px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:5px;'>";
-                    echo "<p><strong>🕒 Redirección automática al material de refuerzo en <span id='countdown-refuerzo'>25</span> segundos</strong></p>";
+                    echo "<p><strong>🕒 Redirección automática al material de refuerzo en <span id='countdown-refuerzo'>10</span> segundos</strong></p>";
                     echo "<p><small>Puedes acceder inmediatamente si estás listo.</small></p>";
                     echo "</div>";
                     
@@ -311,7 +311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo "</div>";
                     
                     echo "<script>
-                        var timeLeftRefuerzo = 25;
+                        var timeLeftRefuerzo = 10;
                         var countdownElementRefuerzo = document.getElementById('countdown-refuerzo');
                         
                         var timerRefuerzo = setInterval(function() {
@@ -333,7 +333,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo "</div>";
                     
                     echo "<div id='countdown-message-salto' style='margin:20px 0; padding:15px; background:#d1ecf1; border-left:4px solid #17a2b8; border-radius:5px;'>";
-                    echo "<p><strong>🕒 Redirección automática al material en <span id='countdown-salto'>20</span> segundos</strong></p>";
+                    echo "<p><strong>🕒 Redirección automática al material en <span id='countdown-salto'>10</span> segundos</strong></p>";
                     echo "<p><small>Puedes acceder inmediatamente si prefieres.</small></p>";
                     echo "</div>";
                     
@@ -349,7 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo "</div>";
                     
                     echo "<script>
-                        var timeLeftSalto = 20;
+                        var timeLeftSalto = 10;
                         var countdownElementSalto = document.getElementById('countdown-salto');
                         
                         var timerSalto = setInterval(function() {
@@ -371,7 +371,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo "</div>";
                 
                 echo "<div id='countdown-message-retry1' style='margin:20px 0; padding:15px; background:#e7f3ff; border-left:4px solid #007bff; border-radius:5px;'>";
-                echo "<p><strong>🕒 Redirección automática para reintento en <span id='countdown-retry1'>15</span> segundos</strong></p>";
+                echo "<p><strong>🕒 Redirección automática para reintento en <span id='countdown-retry1'>10</span> segundos</strong></p>";
                 echo "<p><small>Puedes intentar inmediatamente si estás preparado.</small></p>";
                 echo "</div>";
                 
@@ -388,7 +388,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo "</div>";
                 
                 echo "<script>
-                    var timeLeftRetry1 = 15;
+                    var timeLeftRetry1 = 10;
                     var countdownElementRetry1 = document.getElementById('countdown-retry1');
                     
                     var timerRetry1 = setInterval(function() {
@@ -410,7 +410,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "</div>";
             
             echo "<div id='countdown-message-retry2' style='margin:20px 0; padding:15px; background:#e7f3ff; border-left:4px solid #007bff; border-radius:5px;'>";
-            echo "<p><strong>🕒 Redirección automática para reintento en <span id='countdown-retry2'>15</span> segundos</strong></p>";
+            echo "<p><strong>🕒 Redirección automática para reintento en <span id='countdown-retry2'>10</span> segundos</strong></p>";
             echo "<p><small>Puedes comenzar cuando te sientas preparado.</small></p>";
             echo "</div>";
             
@@ -427,7 +427,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "</div>";
             
             echo "<script>
-                var timeLeftRetry2 = 15;
+                var timeLeftRetry2 = 10;
                 var countdownElementRetry2 = document.getElementById('countdown-retry2');
                 
                 var timerRetry2 = setInterval(function() {
@@ -487,7 +487,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo "</div>";
                     
                     echo "<div id='countdown-message-previo-refuerzo' style='margin:20px 0; padding:15px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:5px;'>";
-                    echo "<p><strong>🕒 Redirección automática al refuerzo en <span id='countdown-previo-refuerzo'>20</span> segundos</strong></p>";
+                    echo "<p><strong>🕒 Redirección automática al refuerzo en <span id='countdown-previo-refuerzo'>10</span> segundos</strong></p>";
                     echo "</div>";
                     
                     $refuerzourl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
@@ -502,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo "</div>";
                     
                     echo "<script>
-                        var timeLeftPrevioRefuerzo = 20;
+                        var timeLeftPrevioRefuerzo = 10;
                         var countdownElementPrevioRefuerzo = document.getElementById('countdown-previo-refuerzo');
                         
                         var timerPrevioRefuerzo = setInterval(function() {
@@ -523,7 +523,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo "</div>";
                     
                     echo "<div id='countdown-message-previo-salto' style='margin:20px 0; padding:15px; background:#d1ecf1; border-left:4px solid #17a2b8; border-radius:5px;'>";
-                    echo "<p><strong>🕒 Redirección automática en <span id='countdown-previo-salto'>18</span> segundos</strong></p>";
+                    echo "<p><strong>🕒 Redirección automática en <span id='countdown-previo-salto'>10</span> segundos</strong></p>";
                     echo "</div>";
                     
                     $saltourl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
@@ -538,7 +538,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo "</div>";
                     
                     echo "<script>
-                        var timeLeftPrevioSalto = 18;
+                        var timeLeftPrevioSalto = 10;
                         var countdownElementPrevioSalto = document.getElementById('countdown-previo-salto');
                         
                         var timerPrevioSalto = setInterval(function() {
@@ -560,7 +560,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo "</div>";
                 
                 echo "<div id='countdown-message-previo-retry' style='margin:20px 0; padding:15px; background:#f8f9fa; border-left:4px solid #6c757d; border-radius:5px;'>";
-                echo "<p><strong>🕒 Redirección automática al reintento en <span id='countdown-previo-retry'>15</span> segundos</strong></p>";
+                echo "<p><strong>🕒 Redirección automática al reintento en <span id='countdown-previo-retry'>10</span> segundos</strong></p>";
                 echo "</div>";
                 
                 $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
@@ -576,7 +576,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 echo "</div>";
                 
                 echo "<script>
-                    var timeLeftPrevioRetry = 15;
+                    var timeLeftPrevioRetry = 10;
                     var countdownElementPrevioRetry = document.getElementById('countdown-previo-retry');
                     
                     var timerPrevioRetry = setInterval(function() {
@@ -598,7 +598,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "</div>";
             
             echo "<div id='countdown-message-previo-direct' style='margin:20px 0; padding:15px; background:#fff3cd; border-left:4px solid #ffc107; border-radius:5px;'>";
-            echo "<p><strong>🕒 Redirección automática al reintento en <span id='countdown-previo-direct'>15</span> segundos</strong></p>";
+            echo "<p><strong>🕒 Redirección automática al reintento en <span id='countdown-previo-direct'>10</span> segundos</strong></p>";
             echo "</div>";
             
             $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
@@ -614,7 +614,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "</div>";
             
             echo "<script>
-                var timeLeftPrevioDirect = 15;
+                var timeLeftPrevioDirect = 10;
                 var countdownElementPrevioDirect = document.getElementById('countdown-previo-direct');
                 
                 var timerPrevioDirect = setInterval(function() {
@@ -636,7 +636,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo "</div>";
         
         echo "<div id='countdown-message-previo-aprobado' style='margin:20px 0; padding:15px; background:#d4edda; border-left:4px solid #28a745; border-radius:5px;'>";
-        echo "<p><strong>🕒 Redirección automática en <span id='countdown-previo-aprobado'>25</span> segundos</strong></p>";
+        echo "<p><strong>🕒 Redirección automática en <span id='countdown-previo-aprobado'>10</span> segundos</strong></p>";
         echo "</div>";
         
         $returnurl = new moodle_url('/mod/learningstylesurvey/path/vista_estudiante.php', [
@@ -649,7 +649,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo "</div>";
         
         echo "<script>
-            var timeLeftPrevioAprobado = 25;
+            var timeLeftPrevioAprobado = 10;
             var countdownElementPrevioAprobado = document.getElementById('countdown-previo-aprobado');
             
             var timerPrevioAprobado = setInterval(function() {
@@ -682,7 +682,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // ✅ Ordenar opciones por ID para mantener consistencia
         $options = $DB->get_records('learningstylesurvey_options', ['questionid' => $q->id], 'id ASC');
         echo "<div style='margin-bottom:25px; padding:15px; border:1px solid #ddd; border-radius:5px; background:#f9f9f9;'>";
-        echo "<h4 style='margin-bottom:15px; color:#333;'>" . ($index + 1) . ". " . format_string($q->questiontext) . "</h4>";
+        echo "<h4 style='margin-bottom:15px; color:#333;'>" . format_string($q->questiontext) . "</h4>";
         foreach ($options as $opt) {
             $radio_id = "q{$q->id}_opt{$opt->id}";
             echo "<div style='margin-bottom:10px;'>";
