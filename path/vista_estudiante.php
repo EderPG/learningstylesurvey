@@ -235,6 +235,28 @@ echo "<h2>Ruta de Aprendizaje (" . ucfirst($style) . ")</h2>";
 
 // Mostrar mensaje de finalización si se completó la ruta
 if ($completed) {
+    // Marcar la ruta como completada en la base de datos
+    $existing_progress = $DB->get_record('learningstylesurvey_user_progress', [
+        'userid' => $USER->id,
+        'pathid' => $pathid
+    ]);
+    
+    if ($existing_progress) {
+        // Actualizar registro existente
+        $existing_progress->status = 'completed';
+        $existing_progress->timemodified = time();
+        $DB->update_record('learningstylesurvey_user_progress', $existing_progress);
+    } else {
+        // Crear nuevo registro
+        $progress_record = new stdClass();
+        $progress_record->userid = $USER->id;
+        $progress_record->pathid = $pathid;
+        $progress_record->status = 'completed';
+        $progress_record->timecreated = time();
+        $progress_record->timemodified = time();
+        $DB->insert_record('learningstylesurvey_user_progress', $progress_record);
+    }
+    
     echo "<div class='alert alert-success alert-dismissible' style='margin-bottom:30px;'>";
     echo "<button type='button' class='close' data-dismiss='alert'>&times;</button>";
     echo "<h4>🎉 ¡Felicitaciones!</h4>";
@@ -712,9 +734,18 @@ if (!$tema_salto && !$tema_refuerzo && !$from_salto) {
     
     // EXCEPCIÓN ESPECIAL: Si viene desde refuerzo, permitir acceso al examen incluso si está completada
     if ($completed_progress && !$is_returning_from_refuerzo) {
-        // Si la ruta está completada Y NO viene desde refuerzo, NO buscar exámenes reprobados
-        $show_refuerzo = false;
-        $tema_refuerzo_id = null;
+        // Si la ruta está completada Y NO viene desde refuerzo, mostrar mensaje de ruta completada y salir
+        echo "<div class='alert alert-info alert-dismissible' style='margin-bottom:30px;'>";
+        echo "<h4>✅ Ruta ya completada</h4>";
+        echo "<p>Ya has completado esta ruta de aprendizaje anteriormente.</p>";
+        if ($cmid) {
+            $menuurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id'=>$cmid]);
+            echo "<a href='{$menuurl}' class='btn btn-primary'>Regresar al menú principal</a>";
+        }
+        echo "</div>";
+        echo "</div>";
+        echo $OUTPUT->footer();
+        exit;
     } else {
         // Buscar exámenes reprobados si: 1) La ruta NO está completada, O 2) Viene desde refuerzo
         $lastquiz = $DB->get_record_sql("
