@@ -11,6 +11,7 @@ $tema_refuerzo = optional_param('tema_refuerzo', 0, PARAM_INT); // Para temas de
 $resource_index = optional_param('resource_index', 0, PARAM_INT); // Para navegación secuencial en temas de salto
 $cmid = optional_param('cmid', 0, PARAM_INT);
 $completed = optional_param('completed', 0, PARAM_INT); // Para mostrar mensaje de finalización
+$from_salto = optional_param('from_salto', 0, PARAM_INT); // Para evitar reprocessar saltos
 
 // Si no se proporciona cmid, intentar obtenerlo de manera inteligente
 if (!$cmid) {
@@ -234,6 +235,28 @@ echo "<h2>Ruta de Aprendizaje (" . ucfirst($style) . ")</h2>";
 
 // Mostrar mensaje de finalización si se completó la ruta
 if ($completed) {
+    // Marcar la ruta como completada en la base de datos
+    $existing_progress = $DB->get_record('learningstylesurvey_user_progress', [
+        'userid' => $USER->id,
+        'pathid' => $pathid
+    ]);
+    
+    if ($existing_progress) {
+        // Actualizar registro existente
+        $existing_progress->status = 'completed';
+        $existing_progress->timemodified = time();
+        $DB->update_record('learningstylesurvey_user_progress', $existing_progress);
+    } else {
+        // Crear nuevo registro
+        $progress_record = new stdClass();
+        $progress_record->userid = $USER->id;
+        $progress_record->pathid = $pathid;
+        $progress_record->status = 'completed';
+        $progress_record->timecreated = time();
+        $progress_record->timemodified = time();
+        $DB->insert_record('learningstylesurvey_user_progress', $progress_record);
+    }
+    
     echo "<div class='alert alert-success alert-dismissible' style='margin-bottom:30px;'>";
     echo "<button type='button' class='close' data-dismiss='alert'>&times;</button>";
     echo "<h4>🎉 ¡Felicitaciones!</h4>";
@@ -246,6 +269,34 @@ if ($completed) {
     echo "</div>";
     echo $OUTPUT->footer();
     exit;
+}
+
+// MANEJO ESPECIAL: Si viene desde refuerzo, ir directamente al examen
+$is_returning_from_refuerzo = optional_param('from_refuerzo', 0, PARAM_INT);
+if ($is_returning_from_refuerzo) {
+    // Buscar el último examen reprobado para reintentarlo
+    $lastquiz = $DB->get_record_sql("
+        SELECT qr.*, s.failredirect 
+        FROM {learningstylesurvey_quiz_results} qr
+        JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
+        WHERE qr.userid = ? AND qr.courseid = ? AND s.pathid = ?
+        AND qr.score < 70
+        ORDER BY qr.timecompleted DESC 
+        LIMIT 1
+    ", [$USER->id, $courseid, $pathid]);
+    
+    if ($lastquiz) {
+        // Redirigir directamente al examen
+        $retryurl = new moodle_url('/mod/learningstylesurvey/quiz/responder_quiz.php', [
+            'id' => $lastquiz->quizid,
+            'courseid' => $courseid,
+            'embedded' => 1,
+            'retry' => 1,
+            'cmid' => $cmid,
+            'from_refuerzo' => 1
+        ]);
+        redirect($retryurl);
+    }
 }
 
 // Manejar saltos adaptativos por tema
@@ -394,11 +445,11 @@ if ($tema_salto) {
                         SELECT s.* FROM {learningpath_steps} s
                         JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id
                         WHERE s.pathid = ? AND r.tema = ? AND s.istest = 0
-                        ORDER BY s.stepnumber ASC LIMIT 1
+                        ORDER BY s.stepnumber DESC LIMIT 1
                     ", [$pathid, $tema_salto]);
                     
                     if ($current_tema_step) {
-                        // Buscar el siguiente paso después de este tema
+                        // Buscar el siguiente paso después de TODOS los pasos de este tema
                         $next_step = $DB->get_record_sql("
                             SELECT s.* FROM {learningpath_steps} s
                             LEFT JOIN {learningstylesurvey_resources} r ON s.resourceid = r.id AND s.istest = 0
@@ -423,9 +474,9 @@ if ($tema_salto) {
                             echo "</p>";
                         }
                     } else {
-                        // Fallback: continuar con la navegación general
+                        // Fallback: usar navegación sin parámetros de salto para evitar loops
                         echo "<p style='text-align:center; margin-top:20px;'>";
-                        echo "<a href='?courseid={$courseid}&pathid={$pathid}&cmid={$cmid}' class='btn btn-success'>Continuar</a>";
+                        echo "<a href='?courseid={$courseid}&pathid={$pathid}&cmid={$cmid}&from_salto=1' class='btn btn-success'>Continuar con la ruta</a>";
                         echo "</p>";
                     }
                 }
@@ -672,22 +723,52 @@ if ($stepid) {
 }
 
 // Verificar si hay examen reprobado que requiera tema de refuerzo
-$lastquiz = $DB->get_record_sql("
-    SELECT qr.*, s.failredirect 
-    FROM {learningstylesurvey_quiz_results} qr
-    JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
-    WHERE qr.userid = ? AND qr.courseid = ? AND s.pathid = ?
-    ORDER BY qr.timecompleted DESC 
-    LIMIT 1
-", [$USER->id, $courseid, $pathid]);
+// PERO SOLO si no estamos procesando un salto específico ni venimos de un salto completado
+if (!$tema_salto && !$tema_refuerzo && !$from_salto) {
+    // PRIMERA VERIFICACIÓN: Comprobar si la ruta ya está completada
+    $completed_progress = $DB->get_record('learningstylesurvey_user_progress', [
+        'userid' => $USER->id,
+        'pathid' => $pathid,
+        'status' => 'completed'
+    ]);
+    
+    // EXCEPCIÓN ESPECIAL: Si viene desde refuerzo, permitir acceso al examen incluso si está completada
+    if ($completed_progress && !$is_returning_from_refuerzo) {
+        // Si la ruta está completada Y NO viene desde refuerzo, mostrar mensaje de ruta completada y salir
+        echo "<div class='alert alert-info alert-dismissible' style='margin-bottom:30px;'>";
+        echo "<h4>✅ Ruta ya completada</h4>";
+        echo "<p>Ya has completado esta ruta de aprendizaje anteriormente.</p>";
+        if ($cmid) {
+            $menuurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id'=>$cmid]);
+            echo "<a href='{$menuurl}' class='btn btn-primary'>Regresar al menú principal</a>";
+        }
+        echo "</div>";
+        echo "</div>";
+        echo $OUTPUT->footer();
+        exit;
+    } else {
+        // Buscar exámenes reprobados si: 1) La ruta NO está completada, O 2) Viene desde refuerzo
+        $lastquiz = $DB->get_record_sql("
+            SELECT qr.*, s.failredirect 
+            FROM {learningstylesurvey_quiz_results} qr
+            JOIN {learningpath_steps} s ON s.resourceid = qr.quizid AND s.istest = 1
+            WHERE qr.userid = ? AND qr.courseid = ? AND s.pathid = ?
+            ORDER BY qr.timecompleted DESC 
+            LIMIT 1
+        ", [$USER->id, $courseid, $pathid]);
 
-$show_refuerzo = false;
-$tema_refuerzo_id = null;
-$is_returning_from_refuerzo = optional_param('from_refuerzo', 0, PARAM_INT);
+        $show_refuerzo = false;
+        $tema_refuerzo_id = null;
 
-if ($lastquiz && $lastquiz->score < 70 && $lastquiz->failredirect && !$is_returning_from_refuerzo) {
-    $tema_refuerzo_id = $lastquiz->failredirect;
-    $show_refuerzo = true;
+        if ($lastquiz && $lastquiz->score < 70 && $lastquiz->failredirect && !$is_returning_from_refuerzo) {
+            $tema_refuerzo_id = $lastquiz->failredirect;
+            $show_refuerzo = true;
+        }
+    }
+} else {
+    // Si ya estamos procesando un salto específico, no ejecutar detección automática
+    $show_refuerzo = false;
+    $tema_refuerzo_id = null;
 }
 
 if ($show_refuerzo && $tema_refuerzo_id) {
@@ -775,6 +856,21 @@ if ($show_refuerzo && $tema_refuerzo_id) {
         'userid' => $USER->id,
         'pathid' => $pathid
     ]);
+
+    // VERIFICACIÓN CRÍTICA: Si la ruta está completada, mostrar mensaje de finalización
+    if ($progress && $progress->status === 'completed') {
+        echo "<div class='alert alert-success' style='text-align:center; padding:25px;'>";
+        echo "<h4>🎉 ¡Ruta ya completada!</h4>";
+        echo "<p>Ya has finalizado exitosamente esta ruta de aprendizaje.</p>";
+        if ($cmid) {
+            $menuurl = new moodle_url('/mod/learningstylesurvey/view.php', ['id'=>$cmid]);
+            echo "<a href='{$menuurl}' class='btn btn-primary btn-lg' style='margin-top:10px;'>Regresar al menú principal</a>";
+        }
+        echo "</div>";
+        echo "</div>";
+        echo $OUTPUT->footer();
+        exit;
+    }
 
     if ($progress && $progress->current_stepid) {
         // Si hay progreso, mostrar el paso actual del usuario
